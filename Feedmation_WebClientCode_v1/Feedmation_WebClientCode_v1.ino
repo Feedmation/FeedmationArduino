@@ -66,11 +66,12 @@ void loop() {
       Serial.print(jsonArray[i]);   
     }
     
-    //Serial.println(); 
-    //aJsonObject* jsonObject = aJson.parse(jsonArray);
-    //aJsonObject* name = aJson.getObjectItem(jsonObject , "Name");
-    //Serial.print("Pets Name: ");
-    //Serial.println(name->valuestring);
+    Serial.println(); 
+    aJsonObject* jsonObject = aJson.parse(jsonArray);
+    aJsonObject* name = aJson.getObjectItem(jsonObject , "Name");
+    Serial.print("Pets Name: ");
+    Serial.println(name->valuestring);
+    aJson.deleteItem(jsonObject);
 
   }
 
