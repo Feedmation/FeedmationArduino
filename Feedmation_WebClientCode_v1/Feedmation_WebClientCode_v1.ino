@@ -1,5 +1,7 @@
+#include <aJSON.h>
 #include <SPI.h>
 #include <Ethernet.h>
+
 
 // Enter a MAC address for your controller below.
 byte mac[] = {  0x00, 0xAA, 0xBB, 0xCC, 0xDE, 0x02 };
@@ -36,9 +38,40 @@ void loop() {
   // if there's incoming data from the net connection.
   // send it out the serial port.  This is for debugging
   // purposes only:
+  
   if (client.available()) {
-    char c = client.read();
-    Serial.print(c);
+    String httpReturn =  String("");  //String for http request return
+    while (client.available() > 0) { //loop until the whole http request is stored
+      char c = client.read();
+      httpReturn.concat(String(c));  //Storing the htto request return
+    }
+    
+    Serial.println(httpReturn); //print return for debugging
+    
+    int openingBracket = httpReturn.indexOf('{'); //find start index of json 
+    int closingBracket = httpReturn.lastIndexOf('}'); //find end index of json 
+    String jsonString =  String(""); // create blank string
+    for (int i=openingBracket; i <= closingBracket; i++){ //Parse out and storage json string
+      jsonString.concat(httpReturn.charAt(i));   
+    }
+    
+    //Serial.println(jsonString); //print json serial for debegging
+    
+    char jsonArray[(closingBracket - openingBracket) + 2];
+    jsonString.toCharArray(jsonArray, (closingBracket - openingBracket) + 2);  //converting string to char array for aJSON   
+    
+    Serial.println();
+    Serial.print("JSON is: ");
+    for (int i=0; i <= (closingBracket - openingBracket); i++){ //print char array debugging only
+      Serial.print(jsonArray[i]);   
+    }
+    
+    //Serial.println(); 
+    //aJsonObject* jsonObject = aJson.parse(jsonArray);
+    //aJsonObject* name = aJson.getObjectItem(jsonObject , "Name");
+    //Serial.print("Pets Name: ");
+    //Serial.println(name->valuestring);
+
   }
 
   // if there's no net connection, but there was one last time
