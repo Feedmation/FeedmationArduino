@@ -1,8 +1,10 @@
+#include <MemoryFree.h>
 #include <aJSON.h>
 #include <Bridge.h>
 #include <HttpClient.h>
 #include <Wire.h>
 #include <DS1307.h>
+#include <FileIO.h>
 
 
 /**********************************************************************************************************************
@@ -41,21 +43,25 @@ int LDRReading;
 int RTCValues[7];
 long secSinceMidnight = 0;
 
-int loopCount = 1;
-
+//HTTP Request and data storing
 // Enter a api get string
 char apiGET[] = "www.feedmation.com/api/v1/get_data.php?feederid=12345&function=pull_settings";
+//Boolean value that gets set when http request data is availble for parsing
+boolean httpDataReady = false;
+char httpDataFile[] = "/tmp/httpReturn.txt";
+unsigned long lastConnectionTime = 0;            // last time you connected to the server, in milliseconds
+const unsigned long postingInterval = 10L * 1000L; // delay between updates, in milliseconds
+
 
 /**********************************************************************************************************************
 *                                                  Animal Settings
 ***********************************************************************************************************************/
 
-long lockoutTime[3] = {0,0,0};
+long lockoutTime[4] = {0,0,0,0};
 
 //animal settings struct
 struct animalSettings{
    char* tag;
-   char* name;
    int feedAttempts;
    float amount;
    long slot1Start;
@@ -74,7 +80,6 @@ void initAnimalSettings() {
   //declaring animal settings
   //animal one 
   animal[0].tag = "84003515CA";
-  animal[0].name = "RoverRover";
   animal[0].feedAttempts = 0;
   animal[0].amount = 0; //amount of food in cups
   animal[0].slot1Start = 0;
@@ -86,7 +91,6 @@ void initAnimalSettings() {
   //animal[0].lockoutTime = 0;
   //animal two 
   animal[1].tag = "8400355406";
-  animal[1].name = "RexRexRex";
   animal[1].feedAttempts = 0;
   animal[1].amount = 0; //amount of food in cups
   animal[1].slot1Start = 0;
@@ -95,10 +99,9 @@ void initAnimalSettings() {
   animal[1].slot2End = 0;
   animal[1].slot1Eaten = 0;
   animal[1].slot2Eaten = 0;
- // animal[1].lockoutTime = 0;
+  // animal[1].lockoutTime = 0;
   //animal three
   animal[2].tag = "8400351592";
-  animal[2].name = "MaxMaxMax";
   animal[2].feedAttempts = 0;
   animal[2].amount = 0; //amount of food in cups
   animal[2].slot1Start = 0;
@@ -108,6 +111,17 @@ void initAnimalSettings() {
   animal[2].slot1Eaten = 0;
   animal[2].slot2Eaten = 0;
  // animal[2].lockoutTime = 0;
+ //animal four
+  animal[3].tag = "8400351592";
+  animal[3].feedAttempts = 0;
+  animal[3].amount = 0; //amount of food in cups
+  animal[3].slot1Start = 0;
+  animal[3].slot1End = 0;
+  animal[3].slot2Start = 0;
+  animal[3].slot2End = 0;
+  animal[3].slot1Eaten = 0;
+  animal[3].slot2Eaten = 0;
+ // animal[3].lockoutTime = 0;
 }
 
 /**********************************************************************************************************************
@@ -167,6 +181,8 @@ void setup() {
   pinMode(motorPin2, OUTPUT);
   pinMode(motorPin3, OUTPUT);
   pinMode(motorPin4, OUTPUT);  
+  
+  Bridge.begin();
   Serial.begin(9600);
 
   //pet feeder setup
@@ -183,8 +199,8 @@ void setup() {
   //real time clock setup
   DS1307.begin();
   
-  Bridge.begin();
-
+   // Setup File IO
+  FileSystem.begin();
 }
 
 /**********************************************************************************************************************
@@ -238,7 +254,7 @@ void processFeedingRequest() {
           digitalWrite(motorPin2, LOW);
           digitalWrite(motorPin3, LOW);
           digitalWrite(motorPin4, LOW);
-          Serial.print(animal[i].name);
+          Serial.print(animal[i].tag);
           Serial.println(F(" was fed!"));
           animal[i].feedAttempts++;
           deniedFeeding = 0;
@@ -250,8 +266,8 @@ void processFeedingRequest() {
         if ( (strcmp(animal[i].tag, tagId) == 0) && deniedFeeding == 1 ) { 
           beep();
           animal[i].feedAttempts++;
-          Serial.print(animal[i].name);
-          Serial.println(F(" already ate!"));
+          Serial.print(animal[i].tag);
+          Serial.println(F("already ate!"));
         } 
     
         //if pet ate then mark eaten variable for that time slot
@@ -306,13 +322,108 @@ void clearSerial() {
 
 
 /**********************************************************************************************************************
+*                                     JSON Parsing and Animal Settings update
+***********************************************************************************************************************/
+
+
+ void jsonParsing( char * filePath )  {
+   
+   if (FileSystem.exists(filePath)) { //file exists then create object
+     
+     File file = FileSystem.open(filePath, FILE_READ);
+     aJsonStream file_stream(&file);
+     aJsonObject* jsonObject = aJson.parse(&file_stream);
+     file.close();
+     
+     Serial.print(F("Free Memory during JSON processing = "));
+     Serial.println(getFreeMemory());
+     
+     if (jsonObject != NULL) { //if JSON opbject was created then parse
+       aJsonObject* updates = aJson.getObjectItem(jsonObject , "u");
+       if (updates != NULL) {
+         if (updates->valueint == 1) {
+           //Serial.println(F("There are config updates"));
+           aJsonObject* tag1 = aJson.getObjectItem(jsonObject , "1");
+           aJsonObject* tag1Id = aJson.getObjectItem(tag1 , "t");
+           Serial.print(F("tag: "));
+           Serial.println(tag1Id->valuestring);
+           aJsonObject* amount = aJson.getObjectItem(tag1, "s1");
+           Serial.print(F("amount in cups: "));
+           Serial.println(amount->valuestring);
+           
+           beep(); //beep if update has completed
+         }
+       }
+     } else{
+         Serial.print(F("JSON Object is empty"));
+     }
+     aJson.deleteItem(jsonObject);
+   }
+ }
+ 
+ 
+ /**********************************************************************************************************************
+*                                                  HTTP Get request
+***********************************************************************************************************************/
+ 
+ void httpRequest() {
+  
+   HttpClient client;
+   client.get(apiGET);
+
+   if (client.available()) {
+    
+    String httpReturnData =  String("");  //String for http request return
+    while (client.available() > 0) { //loop until the whole http request is stored
+      char c = client.read();
+      httpReturnData.concat(String(c));  //Storing the http request return
+    }
+
+    //Serial.println(httpReturnData);
+    
+    if (FileSystem.exists(httpDataFile)) {
+      FileSystem.remove(httpDataFile); 
+    }
+    
+    File httpReturnFile = FileSystem.open(httpDataFile, FILE_WRITE);
+    
+    httpReturnFile.print(httpReturnData);
+    httpReturnFile.close();
+  
+    /*
+    File printFile = FileSystem.open("/tmp/httpReturn.txt", FILE_READ);
+    
+    while (printFile.available() > 0) { 
+      char c = printFile.read();
+      Serial.print(c); 
+    }
+    printFile.close();
+    */
+    
+    httpReturnData =  String("");
+    httpDataReady = true;
+    
+    // note the time that the connection was made:
+    lastConnectionTime = millis();
+    
+  }
+}
+
+
+/**********************************************************************************************************************
 *                                                           Main loop
 ***********************************************************************************************************************/
 
 void loop() { 
-  
+
   //get current time
   DS1307.getDate(RTCValues);
+  
+  //parse http data if new data is available
+  if (httpDataReady) {
+    jsonParsing(httpDataFile);
+    httpDataReady = false; 
+  }
   
     //Looking for a tag
   if (Serial.available() > 0) {
@@ -340,59 +451,20 @@ void loop() {
         ++rfidCounter;
     } 
   }
-  
-  HttpClient client;
-  client.get(apiGET);
-
-  if (client.available()) {
-    String httpReturn =  String("");  //String for http request return
-    while (client.available() > 0) { //loop until the whole http request is stored
-      char c = client.read();
-      httpReturn.concat(String(c));  //Storing the http request return
-    }
-
-    Serial.println(httpReturn); //print return for debugging
-
-    int openingBracket = httpReturn.indexOf('{'); //find start index of json
-    int closingBracket = httpReturn.lastIndexOf('}'); //find end index of json
-    String jsonString =  String(""); // create blank string
-    for (int i = openingBracket; i <= closingBracket; i++) { //Parse out and storage json string
-      jsonString.concat(httpReturn.charAt(i));
-    }
-
-    //Serial.println(jsonString); //print json serial for debegging
-
-    char jsonArray[(closingBracket - openingBracket) + 2];
-    jsonString.toCharArray(jsonArray, (closingBracket - openingBracket) + 2);  //converting string to char array for aJSON
-
-    Serial.println();
-    Serial.print("JSON is: ");
-    for (int i = 0; i <= (closingBracket - openingBracket); i++) { //print char array debugging only
-      Serial.print(jsonArray[i]);
-    }
-
-    Serial.println();
-    aJsonObject* jsonObject = aJson.parse(jsonArray);
-    aJsonObject* name = aJson.getObjectItem(jsonObject , "Name");
-    Serial.print("Pets Name: ");
-    Serial.println(name->valuestring);
-    aJson.deleteItem(jsonObject);
-
-  }
-
-  delay(5000);
-  
-  Serial.print("Connection: ");
-  Serial.println(loopCount);
-  
-  loopCount++;
+ 
+ // if ten seconds have passed since your last connection,
+  // then connect again and send data:
+  if (millis() - lastConnectionTime > postingInterval) {
+    httpRequest();
+    Serial.print(F("Free Memory = "));
+    Serial.println(getFreeMemory());
+  } 
   
    //reset time slot variables after time slot passes
    //resetSlots();
    
    //check food tank level
-   LDRReading = analogRead(A1); 
-
+   LDRReading = analogRead(A1);
 
 }
-
+              
