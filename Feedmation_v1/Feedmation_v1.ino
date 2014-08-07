@@ -45,7 +45,7 @@ long secSinceMidnight = 0;
 
 //HTTP Request and data storing
 // Enter a api get string
-char apiGET[] = "www.feedmation.com/api/v1/get_data.php?feederid=12345&function=pull_settings";
+char apiGET[] = "www.feedmation.com/api/v1/sync_data.php?feederid=12345&function=pull_settings";
 //Boolean value that gets set when http request data is availble for parsing
 boolean httpDataReady = false;
 char httpDataFile[] = "/tmp/httpReturn.txt";
@@ -79,7 +79,7 @@ animalSettings animal[3];
 void initAnimalSettings() {
   //declaring animal settings
   //animal one 
-  animal[0].tag = "84003515CA";
+  animal[0].tag = "0000000000";
   animal[0].feedAttempts = 0;
   animal[0].amount = 0; //amount of food in cups
   animal[0].slot1Start = 0;
@@ -90,7 +90,7 @@ void initAnimalSettings() {
   animal[0].slot2Eaten = 0;
   //animal[0].lockoutTime = 0;
   //animal two 
-  animal[1].tag = "8400355406";
+  animal[1].tag = "0000000000";
   animal[1].feedAttempts = 0;
   animal[1].amount = 0; //amount of food in cups
   animal[1].slot1Start = 0;
@@ -101,7 +101,7 @@ void initAnimalSettings() {
   animal[1].slot2Eaten = 0;
   // animal[1].lockoutTime = 0;
   //animal three
-  animal[2].tag = "8400351592";
+  animal[2].tag = "0000000000";
   animal[2].feedAttempts = 0;
   animal[2].amount = 0; //amount of food in cups
   animal[2].slot1Start = 0;
@@ -112,7 +112,7 @@ void initAnimalSettings() {
   animal[2].slot2Eaten = 0;
  // animal[2].lockoutTime = 0;
  //animal four
-  animal[3].tag = "8400351592";
+  animal[3].tag = "0000000000";
   animal[3].feedAttempts = 0;
   animal[3].amount = 0; //amount of food in cups
   animal[3].slot1Start = 0;
@@ -340,8 +340,19 @@ void clearSerial() {
      
      if (jsonObject != NULL) { //if JSON opbject was created then parse
        aJsonObject* updates = aJson.getObjectItem(jsonObject , "u");
+       aJsonObject* feedNow = aJson.getObjectItem(jsonObject , "f");
+       aJsonObject* feedNowAmount = aJson.getObjectItem(jsonObject , "fa");
+       
+       if (feedNow != NULL) { //feed now request if true
+         if (feedNow->valueint == 1) {
+           Serial.println(feedNowAmount->valuefloat);
+           feedNowRequest(feedNowAmount->valuefloat);
+         }
+       }
+       
+       
        if (updates != NULL) {
-         if (updates->valueint == 1) {
+         if (updates->valueint == 1) { //update pet struct if true
            //Serial.println(F("There are config updates"));
            aJsonObject* tag1 = aJson.getObjectItem(jsonObject , "1");
            aJsonObject* tag1Id = aJson.getObjectItem(tag1 , "t");
@@ -354,6 +365,7 @@ void clearSerial() {
            beep(); //beep if update has completed
          }
        }
+       
      } else{
          Serial.print(F("JSON Object is empty"));
      }
@@ -406,9 +418,34 @@ void clearSerial() {
     // note the time that the connection was made:
     lastConnectionTime = millis();
     
+    }
   }
-}
+  
 
+
+/**********************************************************************************************************************
+*                                                  Feed Now request function
+***********************************************************************************************************************/  
+
+  void feedNowRequest( float feedAmount) {
+     
+    int steps =  cup * feedAmount;
+    
+    Serial.print(F("Feed Now in steps: "));
+    Serial.println(steps);
+    
+    for(int j = 0; j <= steps; j++)
+    {
+      anticlockwise();
+    }
+    //turn off all motor pins when food is dispenced
+    digitalWrite(motorPin1, LOW);
+    digitalWrite(motorPin2, LOW);
+    digitalWrite(motorPin3, LOW);
+    digitalWrite(motorPin4, LOW);
+  }
+  
+  
 
 /**********************************************************************************************************************
 *                                                           Main loop
