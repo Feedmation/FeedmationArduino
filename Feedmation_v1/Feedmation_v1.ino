@@ -44,25 +44,28 @@ int RTCValues[7];
 long secSinceMidnight = 0;
 
 //HTTP Request and data storing
-// Enter a api get string
-char apiGET[] = "www.feedmation.com/api/v1/sync_data.php?feederid=12345&function=pull_settings";
+// Enter a api get strings
+char urlGetSettings[] = "www.feedmation.com/api/v1/sync_data.php?feederid=12345&function=pull_settings";
+char urlGetFeedNow[] = "www.feedmation.com/api/v1/sync_data.php?feederid=12345&function=feed_now";
+
 //Boolean value that gets set when http request data is availble for parsing
-boolean httpDataReady = false;
-char httpDataFile[] = "/tmp/httpReturn.txt";
-unsigned long lastConnectionTime = 0;            // last time you connected to the server, in milliseconds
-const unsigned long postingInterval = 10L * 1000L; // delay between updates, in milliseconds
+boolean httpSettingsDataReady = false;
+boolean httpFeedNowDataReady = false;
+char httpSettingsFile[] = "/tmp/httpReturnSettings.txt";
+char httpFeedNowFile[] = "/tmp/httpReturnFeedNow.txt";
+unsigned long settingsLastConnectionTime = 0;            // last time you connected to the server, in milliseconds
+const unsigned long settingsPostingInterval = 10L * 1000L; // delay between updates, in milliseconds
+unsigned long feedNowLastConnectionTime = 0;            // last time you connected to the server, in milliseconds
+const unsigned long feedNowPostingInterval = 5L * 1000L; // delay between updates, in milliseconds
 
 
 /**********************************************************************************************************************
 *                                                  Animal Settings
 ***********************************************************************************************************************/
 
-long lockoutTime[4] = {0,0,0,0};
-
 //animal settings struct
 struct animalSettings{
    char* tag;
-   int feedAttempts;
    float amount;
    long slot1Start;
    long slot1End;
@@ -70,7 +73,7 @@ struct animalSettings{
    long slot2End;
    int slot1Eaten;
    int slot2Eaten;
-   //long lockoutTime;
+   long lockoutTime;
 };
 
 //array of animal setting struct for each tag\animal
@@ -80,7 +83,6 @@ void initAnimalSettings() {
   //declaring animal settings
   //animal one 
   animal[0].tag = "0000000000";
-  animal[0].feedAttempts = 0;
   animal[0].amount = 0; //amount of food in cups
   animal[0].slot1Start = 0;
   animal[0].slot1End = 0;
@@ -88,10 +90,9 @@ void initAnimalSettings() {
   animal[0].slot2End = 0;
   animal[0].slot1Eaten = 0;
   animal[0].slot2Eaten = 0;
-  //animal[0].lockoutTime = 0;
+  animal[0].lockoutTime = 0;
   //animal two 
   animal[1].tag = "0000000000";
-  animal[1].feedAttempts = 0;
   animal[1].amount = 0; //amount of food in cups
   animal[1].slot1Start = 0;
   animal[1].slot1End = 0;
@@ -99,10 +100,9 @@ void initAnimalSettings() {
   animal[1].slot2End = 0;
   animal[1].slot1Eaten = 0;
   animal[1].slot2Eaten = 0;
-  // animal[1].lockoutTime = 0;
+  animal[1].lockoutTime = 0;
   //animal three
   animal[2].tag = "0000000000";
-  animal[2].feedAttempts = 0;
   animal[2].amount = 0; //amount of food in cups
   animal[2].slot1Start = 0;
   animal[2].slot1End = 0;
@@ -110,10 +110,9 @@ void initAnimalSettings() {
   animal[2].slot2End = 0;
   animal[2].slot1Eaten = 0;
   animal[2].slot2Eaten = 0;
- // animal[2].lockoutTime = 0;
+  animal[2].lockoutTime = 0;
  //animal four
   animal[3].tag = "0000000000";
-  animal[3].feedAttempts = 0;
   animal[3].amount = 0; //amount of food in cups
   animal[3].slot1Start = 0;
   animal[3].slot1End = 0;
@@ -121,7 +120,7 @@ void initAnimalSettings() {
   animal[3].slot2End = 0;
   animal[3].slot1Eaten = 0;
   animal[3].slot2Eaten = 0;
- // animal[3].lockoutTime = 0;
+  animal[3].lockoutTime = 0;
 }
 
 /**********************************************************************************************************************
@@ -231,11 +230,11 @@ void processFeedingRequest() {
   if(LDRReading <= 200)
   {
      //loop and find animals settings and process animals request for food
-    for (int i = 0; i < 3; ++i) 
+    for (int i = 0; i = 3; ++i) 
     {
       int deniedFeeding = 1; 
       // if pet has eaten within five minutes then don't process tag read
-      if ( secSinceMidnight > lockoutTime[i] ) {
+      if ( secSinceMidnight > animal[i].lockoutTime ) {
         //if tag parsed matches animal and they havent eatten yet, then feed.
         if ( (strcmp(animal[i].tag, tagId) == 0) && ((((animal[i].slot1Start <= secSinceMidnight) && ((animal[i].slot1Start + animal[i].slot1End) >= secSinceMidnight)) && (animal[i].slot1Eaten == 0)) || (((animal[i].slot2Start <= secSinceMidnight) && ((animal[i].slot2Start + animal[i].slot2End) >= secSinceMidnight)) && (animal[i].slot2Eaten == 0))))
         {
@@ -256,16 +255,16 @@ void processFeedingRequest() {
           digitalWrite(motorPin4, LOW);
           Serial.print(animal[i].tag);
           Serial.println(F(" was fed!"));
-          animal[i].feedAttempts++;
+          //animal[i].feedAttempts++;
           deniedFeeding = 0;
-          lockoutTime[i] = secSinceMidnight + (long)(60);
+          animal[i].lockoutTime = secSinceMidnight + (long)(60);
           delay(1000);
       
         }
 
         if ( (strcmp(animal[i].tag, tagId) == 0) && deniedFeeding == 1 ) { 
           beep();
-          animal[i].feedAttempts++;
+          //animal[i].feedAttempts++;
           Serial.print(animal[i].tag);
           Serial.println(F("already ate!"));
         } 
@@ -297,11 +296,11 @@ void resetSlots() {
   //reset slots for each pet if time is greater then 11pm 
   
   if ( secSinceMidnight > 82800 ) {
-    for (int i = 0; i < 3; ++i) 
+    for (int i = 0; i + 3; ++i) 
     {
       animal[i].slot1Eaten = 0;
       animal[i].slot2Eaten = 0;
-      animal[i].feedAttempts = 0;
+      animal[i].lockoutTime = 0;
     }
   }
   
@@ -335,35 +334,58 @@ void clearSerial() {
      aJsonObject* jsonObject = aJson.parse(&file_stream);
      file.close();
      
-     Serial.print(F("Free Memory during JSON processing = "));
-     Serial.println(getFreeMemory());
-     
      if (jsonObject != NULL) { //if JSON opbject was created then parse
-       aJsonObject* updates = aJson.getObjectItem(jsonObject , "u");
+       aJsonObject* tagUpdate = aJson.getObjectItem(jsonObject , "tag");
        aJsonObject* feedNow = aJson.getObjectItem(jsonObject , "f");
        aJsonObject* feedNowAmount = aJson.getObjectItem(jsonObject , "fa");
        
        if (feedNow != NULL) { //feed now request if true
          if (feedNow->valueint == 1) {
-           Serial.println(feedNowAmount->valuefloat);
+           //Serial.println(feedNowAmount->valuefloat);
            feedNowRequest(feedNowAmount->valuefloat);
          }
        }
        
-       
-       if (updates != NULL) {
-         if (updates->valueint == 1) { //update pet struct if true
-           //Serial.println(F("There are config updates"));
-           aJsonObject* tag1 = aJson.getObjectItem(jsonObject , "1");
-           aJsonObject* tag1Id = aJson.getObjectItem(tag1 , "t");
-           Serial.print(F("tag: "));
-           Serial.println(tag1Id->valuestring);
-           aJsonObject* amount = aJson.getObjectItem(tag1, "s1");
-           Serial.print(F("amount in cups: "));
-           Serial.println(amount->valuestring);
+       if (tagUpdate != NULL) {
+           int i = tagUpdate->valueint;
+           Serial.println(i);
+           aJsonObject* tagId = aJson.getObjectItem(jsonObject , "tid");
+           aJsonObject* amount = aJson.getObjectItem(jsonObject , "a");
+           aJsonObject* slot1Start = aJson.getObjectItem(jsonObject , "s1");
+           aJsonObject* slot1End = aJson.getObjectItem(jsonObject , "s1e");
+           aJsonObject* slot2Start = aJson.getObjectItem(jsonObject , "s2");
+           aJsonObject* slot2End = aJson.getObjectItem(jsonObject , "s2e");
+           
+           //Serial.print(F("Free Memory during JSON processing = "));
+           //Serial.println(getFreeMemory());
+           
+           strncpy ( animal[i].tag, tagId->valuestring, 11 );
+           animal[i].amount = amount->valuefloat; //amount of food in cups
+           animal[i].slot1Start = (long)(60) * (long)(60) * (long)(slot1Start->valueint);
+           animal[i].slot1End = (long)(60) * (long)(60) * (long)(slot1End->valueint);;
+           animal[i].slot2Start = (long)(60) * (long)(60) * (long)(slot2Start->valueint);;
+           animal[i].slot2End = (long)(60) * (long)(60) * (long)(slot2End->valueint);;
+           animal[i].slot1Eaten = 0;
+           animal[i].slot2Eaten = 0;
+           
+           /*
+           Serial.print(F("tagid: "));
+           Serial.println(animal[i].tag);
+           Serial.print(F("amount: "));
+           Serial.println(animal[i].amount);
+           Serial.print(F("slot1: "));
+           Serial.println(animal[i].slot1Start);
+           Serial.print(F("slot1: "));
+           Serial.println(animal[i].slot1End);
+           Serial.print(F("slot2: "));
+           Serial.println(animal[i].slot2Start);
+           Serial.print(F("slot2: "));
+           Serial.println(animal[i].slot2End);
+           */
            
            beep(); //beep if update has completed
-         }
+           
+           //httpRequest(urlGetSettings); //call http request and check for more updated tags
        }
        
      } else{
@@ -378,10 +400,10 @@ void clearSerial() {
 *                                                  HTTP Get request
 ***********************************************************************************************************************/
  
- void httpRequest() {
+ void httpRequest( char * url) {
   
    HttpClient client;
-   client.get(apiGET);
+   client.get(url);
 
    if (client.available()) {
     
@@ -391,16 +413,36 @@ void clearSerial() {
       httpReturnData.concat(String(c));  //Storing the http request return
     }
 
-    //Serial.println(httpReturnData);
+    Serial.println(httpReturnData);
     
-    if (FileSystem.exists(httpDataFile)) {
-      FileSystem.remove(httpDataFile); 
+    if (strcmp(url, urlGetSettings) == 0) {
+      
+      if (FileSystem.exists(httpSettingsFile)) {
+      FileSystem.remove(httpSettingsFile); 
+      }
+    
+      File httpReturnFile = FileSystem.open(httpSettingsFile, FILE_WRITE);
+    
+      httpReturnFile.print(httpReturnData);
+      httpReturnFile.close();
+      
+      httpSettingsDataReady = true;
+    
     }
+      
+    if (strcmp(url, urlGetFeedNow) == 0) {
+      
+      if (FileSystem.exists(httpFeedNowFile)) {
+      FileSystem.remove(httpFeedNowFile); 
+      }
     
-    File httpReturnFile = FileSystem.open(httpDataFile, FILE_WRITE);
+      File httpReturnFile = FileSystem.open(httpFeedNowFile, FILE_WRITE);
     
-    httpReturnFile.print(httpReturnData);
-    httpReturnFile.close();
+      httpReturnFile.print(httpReturnData);
+      httpReturnFile.close();
+      
+      httpFeedNowDataReady = true;
+    }
   
     /*
     File printFile = FileSystem.open("/tmp/httpReturn.txt", FILE_READ);
@@ -413,12 +455,19 @@ void clearSerial() {
     */
     
     httpReturnData =  String("");
-    httpDataReady = true;
-    
-    // note the time that the connection was made:
-    lastConnectionTime = millis();
-    
-    }
+   
+   }
+   
+   if (strcmp(url, urlGetSettings) == 0) {
+     // note the time that the connection was made:
+      settingsLastConnectionTime = millis();
+   }
+   
+   if (strcmp(url, urlGetFeedNow) == 0) {
+     // note the time that the connection was made:
+     feedNowLastConnectionTime = millis();
+   }
+   
   }
   
 
@@ -431,8 +480,8 @@ void clearSerial() {
      
     int steps =  cup * feedAmount;
     
-    Serial.print(F("Feed Now in steps: "));
-    Serial.println(steps);
+    //Serial.print(F("Feed Now in steps: "));
+    //Serial.println(steps);
     
     for(int j = 0; j <= steps; j++)
     {
@@ -456,10 +505,16 @@ void loop() {
   //get current time
   DS1307.getDate(RTCValues);
   
-  //parse http data if new data is available
-  if (httpDataReady) {
-    jsonParsing(httpDataFile);
-    httpDataReady = false; 
+  // if new http settings data is available, then parse settings
+  if (httpSettingsDataReady) {
+   jsonParsing(httpSettingsFile);
+   httpSettingsDataReady = false; 
+  }
+  
+  // if new http feed now data is available, then parse feed now
+  if (httpFeedNowDataReady) {
+   jsonParsing(httpFeedNowFile);
+   httpFeedNowDataReady = false; 
   }
   
     //Looking for a tag
@@ -489,13 +544,19 @@ void loop() {
     } 
   }
  
- // if ten seconds have passed since your last connection,
-  // then connect again and send data:
-  if (millis() - lastConnectionTime > postingInterval) {
-    httpRequest();
-    Serial.print(F("Free Memory = "));
-    Serial.println(getFreeMemory());
-  } 
+  // if ten seconds have passed since your last connection for Tag Settings,
+  // then connect again and get data:
+  if (millis() - settingsLastConnectionTime > settingsPostingInterval) {
+    httpRequest(urlGetSettings);
+    //Serial.print(F("Free Memory = "));
+    //Serial.println(getFreeMemory());
+  }
+  
+  // if five seconds have passed since your last connection for Feed Now,
+  // then connect again and get data:
+  if (millis() - feedNowLastConnectionTime > feedNowPostingInterval) {
+    httpRequest(urlGetFeedNow);
+  }
   
    //reset time slot variables after time slot passes
    //resetSlots();
