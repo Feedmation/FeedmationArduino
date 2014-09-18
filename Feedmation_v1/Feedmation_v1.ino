@@ -1,7 +1,7 @@
 #include <MemoryFree.h>
-#include <aJSON.h>
+//#include <aJSON.h>
 #include <Bridge.h>
-#include <HttpClient.h>
+//#include <HttpClient.h>
 #include <Wire.h>
 #include <DS1307.h>
 #include <FileIO.h>
@@ -43,6 +43,7 @@ int LDRReading;
 int RTCValues[7];
 long secSinceMidnight = 0;
 
+/*
 //HTTP Request and data storing
 // Enter a api get strings
 char urlGetSettings[] = "www.feedmation.com/api/v1/sync_data.php?feederid=12345&function=pull_settings";
@@ -57,7 +58,7 @@ unsigned long settingsLastConnectionTime = 0;            // last time you connec
 const unsigned long settingsPostingInterval = 10L * 1000L; // delay between updates, in milliseconds
 unsigned long feedNowLastConnectionTime = 0;            // last time you connected to the server, in milliseconds
 const unsigned long feedNowPostingInterval = 5L * 1000L; // delay between updates, in milliseconds
-
+*/
 
 /**********************************************************************************************************************
 *                                                  Animal Settings
@@ -324,7 +325,7 @@ void clearSerial() {
 *                                     JSON Parsing and Animal Settings update
 ***********************************************************************************************************************/
 
-
+/*
  void jsonParsing( char * filePath )  {
    
    if (FileSystem.exists(filePath)) { //file exists then create object
@@ -368,7 +369,7 @@ void clearSerial() {
            animal[i].slot1Eaten = 0;
            animal[i].slot2Eaten = 0;
            
-           /*
+           
            Serial.print(F("tagid: "));
            Serial.println(animal[i].tag);
            Serial.print(F("amount: "));
@@ -381,11 +382,10 @@ void clearSerial() {
            Serial.println(animal[i].slot2Start);
            Serial.print(F("slot2: "));
            Serial.println(animal[i].slot2End);
-           */
+           
            
            beep(); //beep if update has completed
-           
-           //httpRequest(urlGetSettings); //call http request and check for more updated tags
+          
        }
        
      } else{
@@ -394,12 +394,13 @@ void clearSerial() {
      aJson.deleteItem(jsonObject);
    }
  }
- 
+ */
  
  /**********************************************************************************************************************
 *                                                  HTTP Get request
 ***********************************************************************************************************************/
  
+ /*
  void httpRequest( char * url) {
   
    HttpClient client;
@@ -444,7 +445,7 @@ void clearSerial() {
       httpFeedNowDataReady = true;
     }
   
-    /*
+    
     File printFile = FileSystem.open("/tmp/httpReturn.txt", FILE_READ);
     
     while (printFile.available() > 0) { 
@@ -452,7 +453,7 @@ void clearSerial() {
       Serial.print(c); 
     }
     printFile.close();
-    */
+    
     
     httpReturnData =  String("");
    
@@ -469,7 +470,7 @@ void clearSerial() {
    }
    
   }
-  
+  */
 
 
 /**********************************************************************************************************************
@@ -506,6 +507,7 @@ void loop() {
   DS1307.getDate(RTCValues);
   
   // if new http settings data is available, then parse settings
+  /*
   if (httpSettingsDataReady) {
    jsonParsing(httpSettingsFile);
    httpSettingsDataReady = false; 
@@ -516,7 +518,7 @@ void loop() {
    jsonParsing(httpFeedNowFile);
    httpFeedNowDataReady = false; 
   }
-  
+  */
     //Looking for a tag
   if (Serial.available() > 0) {
       // read the incoming byte:
@@ -543,7 +545,7 @@ void loop() {
         ++rfidCounter;
     } 
   }
- 
+  /*
   // if ten seconds have passed since your last connection for Tag Settings,
   // then connect again and get data:
   if (millis() - settingsLastConnectionTime > settingsPostingInterval) {
@@ -557,7 +559,7 @@ void loop() {
   if (millis() - feedNowLastConnectionTime > feedNowPostingInterval) {
     httpRequest(urlGetFeedNow);
   }
-  
+  */
    //reset time slot variables after time slot passes
    //resetSlots();
    
