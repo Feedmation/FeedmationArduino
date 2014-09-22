@@ -646,11 +646,12 @@ void loop() {
   }
   
   
-  // if ten seconds have passed since last Tag Settings check,
-  // then check again and get data:
+  // if ten seconds have passed since last Tag Settings check and Feed Now check,
+  // then check again and get and parse data:
   if (millis() - settingsLastCheckTime > settingsPostingInterval) {
     runPython();
     parseTagSettings();
+    feedNowRequest();
     Serial.print(F("Free Memory = "));
     Serial.println(getFreeMemory());
   }
