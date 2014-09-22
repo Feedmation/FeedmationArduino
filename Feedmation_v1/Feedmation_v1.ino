@@ -1,7 +1,5 @@
 #include <MemoryFree.h>
-//#include <aJSON.h>
 #include <Bridge.h>
-//#include <HttpClient.h>
 #include <Wire.h>
 #include <DS1307.h>
 #include <FileIO.h>
@@ -43,22 +41,13 @@ int LDRReading;
 int RTCValues[7];
 long secSinceMidnight = 0;
 
-/*
-//HTTP Request and data storing
-// Enter a api get strings
-char urlGetSettings[] = "www.feedmation.com/api/v1/sync_data.php?feederid=12345&function=pull_settings";
-char urlGetFeedNow[] = "www.feedmation.com/api/v1/sync_data.php?feederid=12345&function=feed_now";
+//settings folder path
+char* tagSettingsPath[] = {"/feedmation/settings/1/","/feedmation/settings/2/","/feedmation/settings/3/","/feedmation/settings/4/"};
 
-//Boolean value that gets set when http request data is availble for parsing
-boolean httpSettingsDataReady = false;
-boolean httpFeedNowDataReady = false;
-char httpSettingsFile[] = "/tmp/httpReturnSettings.txt";
-char httpFeedNowFile[] = "/tmp/httpReturnFeedNow.txt";
-unsigned long settingsLastConnectionTime = 0;            // last time you connected to the server, in milliseconds
+//parse tag settings timer
+unsigned long settingsLastCheckTime = 0;            // last time checked for settings update, in milliseconds
 const unsigned long settingsPostingInterval = 10L * 1000L; // delay between updates, in milliseconds
-unsigned long feedNowLastConnectionTime = 0;            // last time you connected to the server, in milliseconds
-const unsigned long feedNowPostingInterval = 5L * 1000L; // delay between updates, in milliseconds
-*/
+boolean systemBoot = true;
 
 /**********************************************************************************************************************
 *                                                  Animal Settings
@@ -322,155 +311,253 @@ void clearSerial() {
 
 
 /**********************************************************************************************************************
-*                                     JSON Parsing and Animal Settings update
-***********************************************************************************************************************/
+*                                                  Python script function
+***********************************************************************************************************************/  
 
-/*
- void jsonParsing( char * filePath )  {
-   
-   if (FileSystem.exists(filePath)) { //file exists then create object
-     
-     File file = FileSystem.open(filePath, FILE_READ);
-     aJsonStream file_stream(&file);
-     aJsonObject* jsonObject = aJson.parse(&file_stream);
-     file.close();
-     
-     if (jsonObject != NULL) { //if JSON opbject was created then parse
-       aJsonObject* tagUpdate = aJson.getObjectItem(jsonObject , "tag");
-       aJsonObject* feedNow = aJson.getObjectItem(jsonObject , "f");
-       aJsonObject* feedNowAmount = aJson.getObjectItem(jsonObject , "fa");
+void runPython() {
+  //Serial.println(F("Ready to run Python script"));
+  const String pyAddr = "/feedmation/feedmation2.py";  // The address of the python script on the Linux side of the Yun board
+  Process p;
+  p.begin("python");
+  p.addParameter(pyAddr);
+  p.run();
+  //Serial.println(F("Done running Python script."));
+}
+
+
+
+/**********************************************************************************************************************
+*                                                  Parse Tag Settings function
+***********************************************************************************************************************/  
+
+  void parseTagSettings() {
+    
+   for (int i = 0; i < 4; i++)
+   {
+     // if settings path exists for each tag
+     if (FileSystem.exists(tagSettingsPath[i])) {
        
-       if (feedNow != NULL) { //feed now request if true
-         if (feedNow->valueint == 1) {
-           //Serial.println(feedNowAmount->valuefloat);
-           feedNowRequest(feedNowAmount->valuefloat);
+ //******* Update Tag Settings ********
+ 
+       char* updatedFile = (char*)malloc(strlen(tagSettingsPath[i])+1+11);
+       strcpy(updatedFile, tagSettingsPath[i]);
+       strcat(updatedFile, "updated.txt");
+       
+       //if updated.txt file exists then update the pet struct
+       if (FileSystem.exists(updatedFile) || systemBoot == true) {
+         String data = String(""); //data storage for files
+         
+         // **** Tag ID update ****
+         char* tagidPath = (char*)malloc(strlen(tagSettingsPath[i])+1+9);
+         strcpy(tagidPath, tagSettingsPath[i]);
+         strcat(tagidPath, "tagID.txt");
+       
+         if (FileSystem.exists(tagidPath)) {
+           
+           File readFile = FileSystem.open(tagidPath, FILE_READ);
+           
+           int size = 0;
+           while (readFile.available() > 0) { 
+             char c = readFile.read();
+             data.concat(String(c));
+             size++;
+           }
+           
+           char convertdata[size+1];
+           data.toCharArray(convertdata, size+1);
+           strcpy (animal[i].tag, convertdata);
+           Serial.print(convertdata);// print for testing
+           
+           data = String(""); //clear data
+           readFile.close();
+           Serial.println();
          }
-       }
-       
-       if (tagUpdate != NULL) {
-           int i = tagUpdate->valueint;
-           Serial.println(i);
-           aJsonObject* tagId = aJson.getObjectItem(jsonObject , "tid");
-           aJsonObject* amount = aJson.getObjectItem(jsonObject , "a");
-           aJsonObject* slot1Start = aJson.getObjectItem(jsonObject , "s1");
-           aJsonObject* slot1End = aJson.getObjectItem(jsonObject , "s1e");
-           aJsonObject* slot2Start = aJson.getObjectItem(jsonObject , "s2");
-           aJsonObject* slot2End = aJson.getObjectItem(jsonObject , "s2e");
-           
-           //Serial.print(F("Free Memory during JSON processing = "));
-           //Serial.println(getFreeMemory());
-           
-           strncpy ( animal[i].tag, tagId->valuestring, 11 );
-           animal[i].amount = amount->valuefloat; //amount of food in cups
-           animal[i].slot1Start = (long)(60) * (long)(60) * (long)(slot1Start->valueint);
-           animal[i].slot1End = (long)(60) * (long)(60) * (long)(slot1End->valueint);;
-           animal[i].slot2Start = (long)(60) * (long)(60) * (long)(slot2Start->valueint);;
-           animal[i].slot2End = (long)(60) * (long)(60) * (long)(slot2End->valueint);;
-           animal[i].slot1Eaten = 0;
-           animal[i].slot2Eaten = 0;
-           
-           
-           Serial.print(F("tagid: "));
-           Serial.println(animal[i].tag);
-           Serial.print(F("amount: "));
-           Serial.println(animal[i].amount);
-           Serial.print(F("slot1: "));
-           Serial.println(animal[i].slot1Start);
-           Serial.print(F("slot1: "));
-           Serial.println(animal[i].slot1End);
-           Serial.print(F("slot2: "));
-           Serial.println(animal[i].slot2Start);
-           Serial.print(F("slot2: "));
-           Serial.println(animal[i].slot2End);
-           
-           
-           beep(); //beep if update has completed
-          
-       }
-       
-     } else{
-         Serial.print(F("JSON Object is empty"));
-     }
-     aJson.deleteItem(jsonObject);
-   }
- }
- */
- 
- /**********************************************************************************************************************
-*                                                  HTTP Get request
-***********************************************************************************************************************/
- 
- /*
- void httpRequest( char * url) {
-  
-   HttpClient client;
-   client.get(url);
+         free(tagidPath);
 
-   if (client.available()) {
-    
-    String httpReturnData =  String("");  //String for http request return
-    while (client.available() > 0) { //loop until the whole http request is stored
-      char c = client.read();
-      httpReturnData.concat(String(c));  //Storing the http request return
-    }
-
-    Serial.println(httpReturnData);
-    
-    if (strcmp(url, urlGetSettings) == 0) {
-      
-      if (FileSystem.exists(httpSettingsFile)) {
-      FileSystem.remove(httpSettingsFile); 
-      }
-    
-      File httpReturnFile = FileSystem.open(httpSettingsFile, FILE_WRITE);
-    
-      httpReturnFile.print(httpReturnData);
-      httpReturnFile.close();
-      
-      httpSettingsDataReady = true;
-    
-    }
-      
-    if (strcmp(url, urlGetFeedNow) == 0) {
-      
-      if (FileSystem.exists(httpFeedNowFile)) {
-      FileSystem.remove(httpFeedNowFile); 
-      }
-    
-      File httpReturnFile = FileSystem.open(httpFeedNowFile, FILE_WRITE);
-    
-      httpReturnFile.print(httpReturnData);
-      httpReturnFile.close();
-      
-      httpFeedNowDataReady = true;
-    }
-  
-    
-    File printFile = FileSystem.open("/tmp/httpReturn.txt", FILE_READ);
-    
-    while (printFile.available() > 0) { 
-      char c = printFile.read();
-      Serial.print(c); 
-    }
-    printFile.close();
-    
-    
-    httpReturnData =  String("");
+         // **** Amount update ****
+         char* amountPath = (char*)malloc(strlen(tagSettingsPath[i])+1+10);
+         strcpy(amountPath, tagSettingsPath[i]);
+         strcat(amountPath, "amount.txt");
+       
+         if (FileSystem.exists(amountPath)) {
+           
+           File readFile = FileSystem.open(amountPath, FILE_READ);
+           
+           int size = 0;
+           while (readFile.available() > 0) { 
+             char c = readFile.read();
+             data.concat(String(c));
+             size++;
+           }
+           
+           char convertdata[size+1];
+           data.toCharArray(convertdata, size+1);
+           
+           animal[i].amount = atof(convertdata);
+           Serial.print(convertdata);// print for testing
+           
+           data = String(""); //clear data
+           readFile.close();
+           Serial.println();
+         }
+         free(amountPath);
    
+         // **** Slot 1 Start update ****
+         char* s1sPath = (char*)malloc(strlen(tagSettingsPath[i])+1+14);
+         strcpy(s1sPath, tagSettingsPath[i]);
+         strcat(s1sPath, "slot1Start.txt");
+         
+         if (FileSystem.exists(s1sPath)) {
+           
+           File readFile = FileSystem.open(s1sPath, FILE_READ);
+           
+           int size = 0;
+           while (readFile.available() > 0) { 
+             char c = readFile.read();
+             data.concat(String(c));
+             size++; 
+           }
+           
+           char convertdata[size+1];
+           data.toCharArray(convertdata, size+1);
+           
+           animal[i].slot1Start = (((long)(60)) * ((long)(60)) * atol(convertdata));
+           Serial.print(convertdata);// print for testing
+           
+           data = String(""); //clear data
+           readFile.close();
+           Serial.println();
+         }
+         free(s1sPath);
+   
+         // **** Slot 1 End update ****
+         char* s1ePath = (char*)malloc(strlen(tagSettingsPath[i])+1+12);
+         strcpy(s1ePath, tagSettingsPath[i]);
+         strcat(s1ePath, "slot1End.txt");
+         
+         if (FileSystem.exists(s1ePath)) {
+           
+           File readFile = FileSystem.open(s1ePath, FILE_READ);
+           
+           int size = 0;
+           while (readFile.available() > 0) { 
+             char c = readFile.read();
+             data.concat(String(c));
+             size++; 
+           }
+           
+           char convertdata[size+1];
+           data.toCharArray(convertdata, size+1);
+           
+           animal[i].slot1End = (((long)(60)) * ((long)(60)) * atol(convertdata));
+           Serial.print(convertdata);// print for testing
+           
+           data = String(""); //clear data
+           readFile.close();
+           Serial.println();
+         }
+         free(s1ePath);
+   
+         // **** Slot 2 Start update ****
+         char* s2sPath = (char*)malloc(strlen(tagSettingsPath[i])+1+14);
+         strcpy(s2sPath, tagSettingsPath[i]);
+         strcat(s2sPath, "slot2Start.txt");
+         
+         if (FileSystem.exists(s2sPath)) {
+           
+           File readFile = FileSystem.open(s2sPath, FILE_READ);
+           
+           int size = 0;
+           while (readFile.available() > 0) { 
+             char c = readFile.read();
+             data.concat(String(c));
+             size++; 
+           }
+           
+           char convertdata[size+1];
+           data.toCharArray(convertdata, size+1);
+           
+           animal[i].slot2Start = (((long)(60)) * ((long)(60)) * atol(convertdata));
+           Serial.print(convertdata);// print for testing
+           
+           data = String(""); //clear data
+           readFile.close();
+           Serial.println();
+         }
+         free(s2sPath);
+   
+         // **** Slot 2 End update ****
+         char* s2ePath = (char*)malloc(strlen(tagSettingsPath[i])+1+12);
+         strcpy(s2ePath, tagSettingsPath[i]);
+         strcat(s2ePath, "slot2End.txt");
+         
+         if (FileSystem.exists(s2ePath)) {
+           
+           File readFile = FileSystem.open(s2ePath, FILE_READ);
+           
+           int size = 0;
+           while (readFile.available() > 0) { 
+             char c = readFile.read();
+             data.concat(String(c));
+             size++; 
+           }
+           
+           char convertdata[size+1];
+           data.toCharArray(convertdata, size+1);
+           
+           animal[i].slot2End = (((long)(60)) * ((long)(60)) * atol(convertdata));
+           Serial.print(convertdata);// print for testing
+           
+           data = String(""); //clear data
+           readFile.close();
+           Serial.println();
+         }
+         free(s2ePath);
+         
+         //reset eaten slots
+         animal[i].slot1Eaten = 0;
+         animal[i].slot2Eaten = 0;
+         FileSystem.remove(updatedFile); //remove updated.txt now that tag has been updated
+         beep(); //beep if update has completed 
+       }
+       free(updatedFile);
+       
+ //******* Check for Deletions ********
+      
+       char* deleteFile = (char*)malloc(strlen(tagSettingsPath[i])+1+11);
+       strcpy(deleteFile, tagSettingsPath[i]);
+       strcat(deleteFile, "deleted.txt");
+       
+       //if updated.txt file exists then update the pet struct
+       if (FileSystem.exists(deleteFile)) {
+         
+         animal[i].tag = "0000000000";
+         animal[i].amount = 0;
+         animal[i].slot1Start = 0;
+         animal[i].slot1End = 0;
+         animal[i].slot2Start = 0;
+         animal[i].slot2End = 0;
+         animal[i].slot1Eaten = 0;
+         animal[i].slot2Eaten = 0;
+         animal[i].lockoutTime = 0;
+         
+         Serial.print(i+1);
+         Serial.print(F(" deleted"));
+         Serial.println();;
+         
+         FileSystem.remove(deleteFile); //remove delete.txt now that tag has been cleared
+         beep(); //beep if update has completed
+       
+       }
+       free(deleteFile);
+       
+     } 
    }
-   
-   if (strcmp(url, urlGetSettings) == 0) {
-     // note the time that the connection was made:
-      settingsLastConnectionTime = millis();
-   }
-   
-   if (strcmp(url, urlGetFeedNow) == 0) {
-     // note the time that the connection was made:
-     feedNowLastConnectionTime = millis();
-   }
-   
+    
+    systemBoot = false;
+    settingsLastCheckTime = millis();
+    
   }
-  */
 
 
 /**********************************************************************************************************************
@@ -506,19 +593,6 @@ void loop() {
   //get current time
   DS1307.getDate(RTCValues);
   
-  // if new http settings data is available, then parse settings
-  /*
-  if (httpSettingsDataReady) {
-   jsonParsing(httpSettingsFile);
-   httpSettingsDataReady = false; 
-  }
-  
-  // if new http feed now data is available, then parse feed now
-  if (httpFeedNowDataReady) {
-   jsonParsing(httpFeedNowFile);
-   httpFeedNowDataReady = false; 
-  }
-  */
     //Looking for a tag
   if (Serial.available() > 0) {
       // read the incoming byte:
@@ -545,26 +619,29 @@ void loop() {
         ++rfidCounter;
     } 
   }
-  /*
-  // if ten seconds have passed since your last connection for Tag Settings,
-  // then connect again and get data:
-  if (millis() - settingsLastConnectionTime > settingsPostingInterval) {
-    httpRequest(urlGetSettings);
-    //Serial.print(F("Free Memory = "));
-    //Serial.println(getFreeMemory());
+  
+  
+  // if ten seconds have passed since last Tag Settings check,
+  // then check again and get data:
+  if (millis() - settingsLastCheckTime > settingsPostingInterval) {
+    runPython();
+    parseTagSettings();
+    Serial.print(F("Free Memory = "));
+    Serial.println(getFreeMemory());
   }
   
+  /*
   // if five seconds have passed since your last connection for Feed Now,
   // then connect again and get data:
   if (millis() - feedNowLastConnectionTime > feedNowPostingInterval) {
     httpRequest(urlGetFeedNow);
   }
   */
+ 
    //reset time slot variables after time slot passes
    //resetSlots();
    
    //check food tank level
    LDRReading = analogRead(A1);
 
-}
-              
+}          
