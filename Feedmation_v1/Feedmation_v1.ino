@@ -564,22 +564,47 @@ void runPython() {
 *                                                  Feed Now request function
 ***********************************************************************************************************************/  
 
-  void feedNowRequest( float feedAmount) {
-     
-    int steps =  cup * feedAmount;
+  void feedNowRequest() {
     
-    //Serial.print(F("Feed Now in steps: "));
-    //Serial.println(steps);
+    char feedNowFilePath[] = "/feedmation/feednow/feednow.txt";
     
-    for(int j = 0; j <= steps; j++)
-    {
-      anticlockwise();
+    // if feed Now file exists then parse and despense food
+    if (FileSystem.exists(feedNowFilePath)) {
+      
+      beep(); //beep if feed now is received
+      String data = String(""); //data storage for files
+      File readFile = FileSystem.open(feedNowFilePath, FILE_READ);
+           
+      int size = 0;
+      while (readFile.available() > 0) { 
+        char c = readFile.read();
+        data.concat(String(c));
+        size++;
+      }
+           
+      char convertdata[size+1];
+      data.toCharArray(convertdata, size+1);
+      
+      int steps =  cup * atoi(convertdata);
+      Serial.print(F("Feed Now in steps: "));
+      Serial.println(steps);
+      for(int j = 0; j <= steps; j++)
+      {
+        anticlockwise();
+      }
+      //turn off all motor pins when food is dispenced
+      digitalWrite(motorPin1, LOW);
+      digitalWrite(motorPin2, LOW);
+      digitalWrite(motorPin3, LOW);
+      digitalWrite(motorPin4, LOW);
+           
+      data = String(""); //clear data
+      readFile.close();
+      Serial.println();
+      FileSystem.remove(feedNowFilePath); //remove feednow.txt now that tag has been cleared
+      beep(); //beep if feed now has completed
     }
-    //turn off all motor pins when food is dispenced
-    digitalWrite(motorPin1, LOW);
-    digitalWrite(motorPin2, LOW);
-    digitalWrite(motorPin3, LOW);
-    digitalWrite(motorPin4, LOW);
+    
   }
   
   
