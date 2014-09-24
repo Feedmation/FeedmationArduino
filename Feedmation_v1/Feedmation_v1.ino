@@ -18,7 +18,7 @@ int motorPin1 = 4;    // Blue   - 28BYJ48 pin 1
 int motorPin2 = 5;    // Pink   - 28BYJ48 pin 2
 int motorPin3 = 6;    // Yellow - 28BYJ48 pin 3
 int motorPin4 = 7;    // Orange - 28BYJ48 pin 4
-
+int rfidCount;
 
 /**********************************************************************************************************************
 *                                                   Global Variables
@@ -615,6 +615,14 @@ void loop() {
   //get current time
   DS1307.getDate(RTCValues);
   
+  if (RFID.available() > 0)
+  {
+    rfidCount = RFID.read();
+    Serial.print(rfidCount, DEC);
+    Serial.print(" ");
+  }
+  
+  /*
     //Looking for a tag
   if (RFID.available() > 0) {
       // read the incoming byte:
@@ -641,6 +649,7 @@ void loop() {
         ++rfidCounter;
     } 
   }
+  */
   
   
   // if ten seconds have passed since last Tag Settings check and Feed Now check,
@@ -652,14 +661,6 @@ void loop() {
     Serial.print(F("Free Memory = "));
     Serial.println(getFreeMemory());
   }
-  
-  /*
-  // if five seconds have passed since your last connection for Feed Now,
-  // then connect again and get data:
-  if (millis() - feedNowLastConnectionTime > feedNowPostingInterval) {
-    httpRequest(urlGetFeedNow);
-  }
-  */
  
    //reset time slot variables after time slot passes
    //resetSlots();
