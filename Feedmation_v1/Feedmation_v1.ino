@@ -47,7 +47,7 @@ char* tagSettingsPath[] = {"/feedmation/settings/1/","/feedmation/settings/2/","
 
 //parse tag settings timer
 unsigned long settingsLastCheckTime = 0;            // last time checked for settings update, in milliseconds
-const unsigned long settingsPostingInterval = 10L * 1000L; // delay between updates, in milliseconds
+const unsigned long settingsPostingInterval = 7L * 1000L; // delay between updates, in milliseconds
 boolean systemBoot = true;
 
 /**********************************************************************************************************************
@@ -583,7 +583,7 @@ void runPython() {
       char convertdata[size+1];
       data.toCharArray(convertdata, size+1);
       
-      int steps =  cup * atoi(convertdata);
+      int steps =  cup * atof(convertdata);
       Serial.print(F("Feed Now in steps: "));
       Serial.println(steps);
       for(int j = 0; j <= steps; j++)
@@ -602,7 +602,6 @@ void runPython() {
       FileSystem.remove(feedNowFilePath); //remove feednow.txt now that tag has been cleared
       beep(); //beep if feed now has completed
     }
-    
   }
   
   
@@ -647,7 +646,7 @@ void loop() {
   // if ten seconds have passed since last Tag Settings check and Feed Now check,
   // then check again and get and parse data:
   if (millis() - settingsLastCheckTime > settingsPostingInterval) {
-    runPython();
+    //runPython();
     parseTagSettings();
     feedNowRequest();
     Serial.print(F("Free Memory = "));
