@@ -545,7 +545,6 @@ void runPython() {
          
          FileSystem.remove(deleteFile); //remove delete.txt now that tag has been cleared
          beep(); //beep if update has completed
-       
        }
        free(deleteFile);
        
