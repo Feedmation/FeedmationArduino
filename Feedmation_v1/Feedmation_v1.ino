@@ -3,6 +3,7 @@
 #include <Wire.h>
 #include <DS1307.h>
 #include <FileIO.h>
+#include <SoftwareSerial.h>
 
 
 /**********************************************************************************************************************
@@ -10,9 +11,9 @@
 ***********************************************************************************************************************/
 
 // define constants for pins
-int systemOnLED = 8;
+SoftwareSerial RFID(2, 3); // RX and TX
 int speaker = 9;
-int tankLED = 3;
+int tankLED = 8;
 int motorPin1 = 4;    // Blue   - 28BYJ48 pin 1
 int motorPin2 = 5;    // Pink   - 28BYJ48 pin 2
 int motorPin3 = 6;    // Yellow - 28BYJ48 pin 3
@@ -171,18 +172,15 @@ void setup() {
   pinMode(motorPin3, OUTPUT);
   pinMode(motorPin4, OUTPUT);  
   
+  // serial setup for brigde, RFID and Serial monitor
   Bridge.begin();
+  RFID.begin(9600);
   Serial.begin(9600);
 
   //pet feeder setup
-  pinMode(systemOnLED, OUTPUT);
-  digitalWrite(systemOnLED, HIGH);
   initAnimalSettings();
-  
-  //LED light for the tank
   pinMode(tankLED, OUTPUT);
   digitalWrite(tankLED, HIGH);
-  
   pinMode(speaker, OUTPUT);
  
   //real time clock setup
@@ -619,9 +617,9 @@ void loop() {
   DS1307.getDate(RTCValues);
   
     //Looking for a tag
-  if (Serial.available() > 0) {
+  if (RFID.available() > 0) {
       // read the incoming byte:
-      readVal = Serial.read();
+      readVal = RFID.read();
     
       // a "2" signals the beginning of a tag
       if (readVal == 2) {
