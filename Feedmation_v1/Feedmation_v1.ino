@@ -11,14 +11,13 @@
 ***********************************************************************************************************************/
 
 // define constants for pins
-SoftwareSerial RFID(2, 3); // RX and TX
+SoftwareSerial RFID(8, 3); // RX and TX
 int speaker = 9;
-int tankLED = 8;
+int tankLED = 12;
 int motorPin1 = 4;    // Blue   - 28BYJ48 pin 1
 int motorPin2 = 5;    // Pink   - 28BYJ48 pin 2
 int motorPin3 = 6;    // Yellow - 28BYJ48 pin 3
 int motorPin4 = 7;    // Orange - 28BYJ48 pin 4
-int rfidCount;
 
 /**********************************************************************************************************************
 *                                                   Global Variables
@@ -301,7 +300,7 @@ void printTag() {
 
 // this function clears the rest of data on the serial, to prevent multiple scans
 void clearSerial() {
-  while (Serial.read() >= 0) {
+  while (RFID.read() >= 0) {
 		; // do nothing
 	}
 }
@@ -325,10 +324,10 @@ void runPython() {
 
 
 /**********************************************************************************************************************
-*                                                  Parse Tag Settings function
+*                                                  Parse Tag Data Files function
 ***********************************************************************************************************************/  
 
-  void parseTagSettings() {
+  void parseTagDataFiles() {
     
    for (int i = 0; i < 4; i++)
    {
@@ -613,15 +612,7 @@ void loop() {
 
   //get current time
   DS1307.getDate(RTCValues);
-  
-  if (RFID.available() > 0)
-  {
-    rfidCount = RFID.read();
-    Serial.print(rfidCount, DEC);
-    Serial.print(" ");
-  }
-  
-  /*
+
     //Looking for a tag
   if (RFID.available() > 0) {
       // read the incoming byte:
@@ -648,14 +639,12 @@ void loop() {
         ++rfidCounter;
     } 
   }
-  */
-  
   
   // if ten seconds have passed since last Tag Settings check and Feed Now check,
   // then check again and get and parse data:
   if (millis() - settingsLastCheckTime > settingsPostingInterval) {
     //runPython();
-    parseTagSettings();
+    parseTagDataFiles();
     feedNowRequest();
     Serial.print(F("Free Memory = "));
     Serial.println(getFreeMemory());
