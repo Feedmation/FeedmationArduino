@@ -217,7 +217,7 @@ void processFeedingRequest() {
   if(LDRReading <= 200)
   {
      //loop and find animals settings and process animals request for food
-    for (int i = 0; i = 3; ++i) 
+    for (int i = 0; i < 4; ++i) 
     {
       int deniedFeeding = 1; 
       // if pet has eaten within five minutes then don't process tag read
