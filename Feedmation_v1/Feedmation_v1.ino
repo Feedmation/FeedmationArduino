@@ -213,7 +213,9 @@ void processFeedingRequest() {
   //get time in seconds
   secSinceMidnight = ((((long)(60)) * (RTCValues[4]) + (long)(RTCValues[5])) * (long)(60)) + ((long)(RTCValues[6]));
   
+  Serial.println(secSinceMidnight);
   Serial.println(LDRReading);
+  
   if(LDRReading <= 200)
   {
      //loop and find animals settings and process animals request for food
@@ -647,7 +649,6 @@ void loop() {
     parseTagDataFiles();
     feedNowRequest();
     Serial.print(F("Free Memory = "));
-    Serial.println(getFreeMemory());
   }
  
    //reset time slot variables after time slot passes
