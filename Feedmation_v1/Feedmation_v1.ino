@@ -649,6 +649,7 @@ void loop() {
     parseTagDataFiles();
     feedNowRequest();
     Serial.print(F("Free Memory = "));
+    Serial.println(getFreeMemory());
   }
  
    //reset time slot variables after time slot passes
