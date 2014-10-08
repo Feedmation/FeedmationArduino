@@ -35,7 +35,8 @@ int cup = 208; // number of steps for one cup of food
 int lookup[8] = {B01000, B01100, B00100, B00110, B00010, B00011, B00001, B01001};
 
 //photocell
-int LDRReading;
+boolean tankEmptyLastVal = false;  //false = has food, true = out of food
+boolean tankEmpty = false;
 
 //real time clock
 int RTCValues[7];
@@ -214,9 +215,8 @@ void processFeedingRequest() {
   secSinceMidnight = ((((long)(60)) * (RTCValues[4]) + (long)(RTCValues[5])) * (long)(60)) + ((long)(RTCValues[6]));
   
   Serial.println(secSinceMidnight);
-  Serial.println(LDRReading);
   
-  if(LDRReading <= 200)
+  if(tankEmpty == false)
   {
      //loop and find animals settings and process animals request for food
     for (int i = 0; i < 4; ++i) 
@@ -605,6 +605,33 @@ void runPython() {
   }
   
   
+/**********************************************************************************************************************
+*                                                  Food Tank Status function
+***********************************************************************************************************************/  
+
+  void tankStatus() {
+    
+    char tankEmptyFilePath[] = "/feedmation/tank_status/tank_empty.txt";
+    char tankFullFilePath[] = "/feedmation/tank_status/tank_full.txt";
+   
+    //check food tank level
+    int LDRReading = analogRead(A1);
+    
+    if ( LDRReading <= 200 ) { 
+      tankEmpty = false; //has food
+    } else {
+      tankEmpty = true; //out of food
+    }
+    
+    if (tankEmpty == tankEmptyLastVal) {
+      //do nothing
+    } else {
+       
+    }
+    
+  }
+  
+  
 
 /**********************************************************************************************************************
 *                                                           Main loop
@@ -649,13 +676,10 @@ void loop() {
     parseTagDataFiles();
     feedNowRequest();
     Serial.print(F("Free Memory = "));
-    Serial.println(getFreeMemory());
   }
  
    //reset time slot variables after time slot passes
    //resetSlots();
-   
-   //check food tank level
-   LDRReading = analogRead(A1);
+   tankStatus();
 
 }          
