@@ -34,9 +34,9 @@ int motorSpeed = 4800;  //variable to set stepper speed
 int cup = 208; // number of steps for one cup of food
 int lookup[8] = {B01000, B01100, B00100, B00110, B00010, B00011, B00001, B01001};
 
-//photocell
+//food tank status (see function below for pin setting and more details)
 boolean tankEmptyLastVal = false;  //false = has food, true = out of food
-boolean tankEmpty = false;
+boolean tankEmpty = false; //false = has food, true = out of food
 
 //real time clock
 int RTCValues[7];
@@ -342,7 +342,7 @@ void runPython() {
        strcpy(updatedFile, tagSettingsPath[i]);
        strcat(updatedFile, "updated.txt");
        
-       //if updated.txt file exists then update the pet struct
+       //if updated.txt file exists of system boot is true, then update the pet struct
        if (FileSystem.exists(updatedFile) || systemBoot == true) {
          String data = String(""); //data storage for files
          
@@ -611,23 +611,57 @@ void runPython() {
 
   void tankStatus() {
     
-    char tankEmptyFilePath[] = "/feedmation/tank_status/tank_empty.txt";
-    char tankFullFilePath[] = "/feedmation/tank_status/tank_full.txt";
+    char tankEmptyFile[] = "/feedmation/tank_status/tank_empty.txt";
+    char tankFullFile[] = "/feedmation/tank_status/tank_full.txt";
    
     //check food tank level
     int LDRReading = analogRead(A1);
     
+    //set new tank status value
     if ( LDRReading <= 200 ) { 
       tankEmpty = false; //has food
     } else {
       tankEmpty = true; //out of food
     }
     
-    if (tankEmpty == tankEmptyLastVal) {
-      //do nothing
-    } else {
-       
-    }
+    //if tankEmpty value does not equal last value then tank status has changed
+    if (tankEmpty != tankEmptyLastVal) {
+      //if tankEmpty is true then write empty file, else false then write full file
+      if ( tankEmpty == true ) { 
+        
+        //if old status files exist then delete them first
+        if (FileSystem.exists(tankEmptyFile)) {
+          FileSystem.remove(tankEmptyFile);
+        }
+        
+        if (FileSystem.exists(tankFullFile)) {
+          FileSystem.remove(tankFullFile); 
+        }
+        
+        File file = FileSystem.open(tankEmptyFile, FILE_WRITE);
+        file.close();
+        Serial.print(F("Tank empty file was created"));
+        
+      } else {
+        
+        //if old status files exist then delete them first
+        if (FileSystem.exists(tankEmptyFile)) {
+          FileSystem.remove(tankEmptyFile);
+        }
+        
+        if (FileSystem.exists(tankFullFile)) {
+          FileSystem.remove(tankFullFile); 
+        }
+        
+        File file = FileSystem.open(tankFullFile, FILE_WRITE);
+        file.close();
+        Serial.print(F("Tank full file was created"));
+        
+        
+      }
+      //since value has change, set last val to current tankEmpty val
+      tankEmptyLastVal = tankEmpty;  
+    } 
     
   }
   
