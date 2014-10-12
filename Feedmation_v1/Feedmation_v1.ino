@@ -6,6 +6,7 @@
 #include <SoftwareSerial.h>
 
 
+
 /**********************************************************************************************************************
 *                                                   Pin Settings
 ***********************************************************************************************************************/
@@ -18,6 +19,8 @@ int motorPin1 = 4;    // Blue   - 28BYJ48 pin 1
 int motorPin2 = 5;    // Pink   - 28BYJ48 pin 2
 int motorPin3 = 6;    // Yellow - 28BYJ48 pin 3
 int motorPin4 = 7;    // Orange - 28BYJ48 pin 4
+
+
 
 /**********************************************************************************************************************
 *                                                   Global Variables
@@ -41,14 +44,26 @@ boolean tankEmpty = false; //false = has food, true = out of food
 //real time clock
 int RTCValues[7];
 long secSinceMidnight = 0;
+char dateTime[20];
 
-//settings folder path
+//folder and file paths
+char tankEmptyFile[] = "/feedmation/tank_status/tank_empty.txt";
+char tankFullFile[] = "/feedmation/tank_status/tank_full.txt";
+//tag settings
 char* tagSettingsPath[] = {"/feedmation/settings/1/","/feedmation/settings/2/","/feedmation/settings/3/","/feedmation/settings/4/"};
+//Pet log path
+char logPath[] = "/feedmation/log_data/";
+//feed now file path
+char feedNowFilePath[] = "/feedmation/feednow/feednow.txt";
 
 //parse tag settings timer
 unsigned long settingsLastCheckTime = 0;            // last time checked for settings update, in milliseconds
 const unsigned long settingsPostingInterval = 7L * 1000L; // delay between updates, in milliseconds
+
+//system boot boolean is used by some function.
 boolean systemBoot = true;
+
+
 
 /**********************************************************************************************************************
 *                                                  Animal Settings
@@ -116,6 +131,8 @@ void initAnimalSettings() {
   //animal[3].lockoutTime = 0;
 }
 
+
+
 /**********************************************************************************************************************
 *                                                      Speaker Code
 ***********************************************************************************************************************/
@@ -130,6 +147,7 @@ void beep() {
   digitalWrite(speaker, LOW);
     
 }
+
 
 
 /**********************************************************************************************************************
@@ -192,6 +210,8 @@ void setup() {
   FileSystem.begin();
 }
 
+
+
 /**********************************************************************************************************************
 *                                             Tag Parsing and Animal Feeding
 ***********************************************************************************************************************/
@@ -211,12 +231,12 @@ void processFeedingRequest() {
   parseTag();
 
 	// print tag id
-  printTag();
+  //printTag();
   
   //get time in seconds
   secSinceMidnight = ((((long)(60)) * (RTCValues[4]) + (long)(RTCValues[5])) * (long)(60)) + ((long)(RTCValues[6]));
   
-  Serial.println(secSinceMidnight);
+  //Serial.println(secSinceMidnight);
   
   if(tankEmpty == false)
   {
@@ -224,58 +244,89 @@ void processFeedingRequest() {
     for (int i = 0; i < 4; ++i) 
     {
       int deniedFeeding = 1; 
-      // if pet has eaten within five minutes then don't process tag read
+      // if pet has eaten within one minute then don't process tag read
       if ( secSinceMidnight > lockoutTime[i] ) {
-        //if tag parsed matches animal and they havent eatten yet, then feed.
-        if ( (strcmp(animal[i].tag, tagId) == 0) && ((((animal[i].slot1Start <= secSinceMidnight) && ((animal[i].slot1Start + animal[i].slot1End) >= secSinceMidnight)) && (animal[i].slot1Eaten == 0)) || (((animal[i].slot2Start <= secSinceMidnight) && ((animal[i].slot2Start + animal[i].slot2End) >= secSinceMidnight)) && (animal[i].slot2Eaten == 0))))
-        {
+        
+        //if tag is matches register pet tags then process feeding
+        if ( (strcmp(animal[i].tag, tagId) == 0) ) {
+        
+          //***Data Logging Starting if tag match found***
+          //get current time from clock
+          DS1307.getDate(RTCValues);
+          sprintf(dateTime, "20%02d-%02d-%02d %02d:%02d:%02d", RTCValues[0], RTCValues[1], RTCValues[2], RTCValues[4], RTCValues[5], RTCValues[6]);//print time to char array
           
-          //Dispence animals food allotment
-          int amount =  cup * animal[i].amount;
-          //print steps 
-          Serial.print(amount);
-          Serial.println(F(" steps"));
-          for(int j = 0; j <= amount; j++)
-          {
-            anticlockwise();
-          }
-          //turn off all motor pins when food is dispenced
-          digitalWrite(motorPin1, LOW);
-          digitalWrite(motorPin2, LOW);
-          digitalWrite(motorPin3, LOW);
-          digitalWrite(motorPin4, LOW);
-          Serial.print(animal[i].tag);
-          Serial.println(F(" was fed!"));
-          //animal[i].feedAttempts++;
-          deniedFeeding = 0;
-          lockoutTime[i] = secSinceMidnight + (long)(60);
-          delay(1000);
-      
-        }
+          char* logPathFile = (char*)malloc(strlen(logPath)+20); //create path plus date stamp for filename
+          strcpy(logPathFile, logPath);
+          strcat(logPathFile, dateTime);
+          
+          File logFile = FileSystem.open(logPathFile, FILE_WRITE); //open log file with date stamp for filename
+          free(logPathFile);
+          String logData =  String("");  //create string for log file
+          logData.concat(tagId); //add tag id to log data
+          logData.concat(",");
+          logData.concat(dateTime); //add date time stamp to log data
+          logData.concat(",");
 
-        if ( (strcmp(animal[i].tag, tagId) == 0) && deniedFeeding == 1 ) { 
-          beep();
-          //animal[i].feedAttempts++;
-          Serial.print(animal[i].tag);
-          Serial.println(F("already ate!"));
-        } 
-    
-        //if pet ate then mark eaten variable for that time slot
-        if ( (strcmp(animal[i].tag, tagId) == 0) && ((((animal[i].slot1Start <= secSinceMidnight) && ((animal[i].slot1Start + animal[i].slot1End) >= secSinceMidnight)) && (animal[i].slot1Eaten == 0)) || (((animal[i].slot2Start <= secSinceMidnight) && ((animal[i].slot2Start + animal[i].slot2End) >= secSinceMidnight)) && (animal[i].slot2Eaten == 0))))
-        {
-          if ((animal[i].slot1Start <= secSinceMidnight) && ((animal[i].slot1Start + animal[i].slot1End) >= secSinceMidnight)) {
-            animal[i].slot1Eaten = 1;
+          //if tag parsed matches pet tag and they havent eatten yet, then feed.
+          if ( (strcmp(animal[i].tag, tagId) == 0) && ((((animal[i].slot1Start <= secSinceMidnight) && ((animal[i].slot1Start + animal[i].slot1End) >= secSinceMidnight)) && (animal[i].slot1Eaten == 0)) || (((animal[i].slot2Start <= secSinceMidnight) && ((animal[i].slot2Start + animal[i].slot2End) >= secSinceMidnight)) && (animal[i].slot2Eaten == 0))))
+          {
+            //Dispence animals food allotment
+            int amount =  cup * animal[i].amount;
+            //print steps 
+            //Serial.print(amount);
+            //Serial.println(F(" steps"));
+            for(int j = 0; j <= amount; j++)
+            {
+              anticlockwise();
+            }
+            //turn off all motor pins when food is dispenced
+            digitalWrite(motorPin1, LOW);
+            digitalWrite(motorPin2, LOW);
+            digitalWrite(motorPin3, LOW);
+            digitalWrite(motorPin4, LOW);
+            
+            char amountChar[5];
+            sprintf(amountChar, "%.2f", animal[i].amount);
+            logData.concat(amountChar); //add amount depensed to log data
+            //Serial.print(animal[i].tag);
+            //Serial.println(F(" was fed!"));
+            //animal[i].feedAttempts++;
+            deniedFeeding = 0;
+            lockoutTime[i] = secSinceMidnight + (long)(60);
+            delay(1000);
+        
           }
-          if ((animal[i].slot2Start <= secSinceMidnight) && ((animal[i].slot2Start + animal[i].slot2End) >= secSinceMidnight)) {
-            animal[i].slot2Eaten = 1;
-          }
+  
+          if ( (strcmp(animal[i].tag, tagId) == 0) && deniedFeeding == 1 ) { 
+            beep();
+            //animal[i].feedAttempts++;
+            //Serial.print(animal[i].tag);
+            //Serial.println(F("already ate!"));
+            logData.concat(String("0.00")); //add amount depensed to log data
+          } 
       
-        }
-      }
-     }
+           //if pet ate then mark eaten variable for that time slot
+           if ( (strcmp(animal[i].tag, tagId) == 0) && ((((animal[i].slot1Start <= secSinceMidnight) && ((animal[i].slot1Start + animal[i].slot1End) >= secSinceMidnight)) && (animal[i].slot1Eaten == 0)) || (((animal[i].slot2Start <= secSinceMidnight) && ((animal[i].slot2Start + animal[i].slot2End) >= secSinceMidnight)) && (animal[i].slot2Eaten == 0))))
+           {
+            if ((animal[i].slot1Start <= secSinceMidnight) && ((animal[i].slot1Start + animal[i].slot1End) >= secSinceMidnight)) {
+              animal[i].slot1Eaten = 1;
+            }
+            if ((animal[i].slot2Start <= secSinceMidnight) && ((animal[i].slot2Start + animal[i].slot2End) >= secSinceMidnight)) {
+              animal[i].slot2Eaten = 1;
+            }
+           }
+          
+          //***End Data Logging*** 
+          logFile.print(logData);
+          logFile.close();
+          logData =  String("");
+              
+         } //end of tag match
+       } //end of lockout
+     } //end of for loop
    } else {
      beep();
-     Serial.println(F("Out of Food!"));
+     //Serial.println(F("Out of Food!"));
    }
 }
 
@@ -307,22 +358,6 @@ void clearSerial() {
   while (RFID.read() >= 0) {
 		; // do nothing
 	}
-}
-
-
-
-/**********************************************************************************************************************
-*                                                  Python script function
-***********************************************************************************************************************/  
-
-void runPython() {
-  //Serial.println(F("Ready to run Python script"));
-  const String pyAddr = "/feedmation/feedmation2.py";  // The address of the python script on the Linux side of the Yun board
-  Process p;
-  p.begin("python");
-  p.addParameter(pyAddr);
-  p.run();
-  //Serial.println(F("Done running Python script."));
 }
 
 
@@ -367,11 +402,11 @@ void runPython() {
            char convertdata[size+1];
            data.toCharArray(convertdata, size+1);
            strcpy (animal[i].tag, convertdata);
-           Serial.print(convertdata);// print for testing
+           //Serial.print(convertdata);// print for testing
            
            data = String(""); //clear data
            readFile.close();
-           Serial.println();
+           //Serial.println();
          }
          free(tagidPath);
 
@@ -395,11 +430,11 @@ void runPython() {
            data.toCharArray(convertdata, size+1);
            
            animal[i].amount = atof(convertdata);
-           Serial.print(convertdata);// print for testing
+           //Serial.print(convertdata);// print for testing
            
            data = String(""); //clear data
            readFile.close();
-           Serial.println();
+           //Serial.println();
          }
          free(amountPath);
    
@@ -423,11 +458,11 @@ void runPython() {
            data.toCharArray(convertdata, size+1);
            
            animal[i].slot1Start = (((long)(60)) * ((long)(60)) * atol(convertdata));
-           Serial.print(convertdata);// print for testing
+           //Serial.print(convertdata);// print for testing
            
            data = String(""); //clear data
            readFile.close();
-           Serial.println();
+           //Serial.println();
          }
          free(s1sPath);
    
@@ -451,11 +486,11 @@ void runPython() {
            data.toCharArray(convertdata, size+1);
            
            animal[i].slot1End = (((long)(60)) * ((long)(60)) * atol(convertdata));
-           Serial.print(convertdata);// print for testing
+           //Serial.print(convertdata);// print for testing
            
            data = String(""); //clear data
            readFile.close();
-           Serial.println();
+           //Serial.println();
          }
          free(s1ePath);
    
@@ -479,11 +514,11 @@ void runPython() {
            data.toCharArray(convertdata, size+1);
            
            animal[i].slot2Start = (((long)(60)) * ((long)(60)) * atol(convertdata));
-           Serial.print(convertdata);// print for testing
+           //Serial.print(convertdata);// print for testing
            
            data = String(""); //clear data
            readFile.close();
-           Serial.println();
+           //Serial.println();
          }
          free(s2sPath);
    
@@ -507,11 +542,11 @@ void runPython() {
            data.toCharArray(convertdata, size+1);
            
            animal[i].slot2End = (((long)(60)) * ((long)(60)) * atol(convertdata));
-           Serial.print(convertdata);// print for testing
+           //Serial.print(convertdata);// print for testing
            
            data = String(""); //clear data
            readFile.close();
-           Serial.println();
+           //Serial.println();
          }
          free(s2ePath);
          
@@ -543,9 +578,9 @@ void runPython() {
          animal[i].slot2Eaten = 0;
          lockoutTime[i] = 0;
          
-         Serial.print(i+1);
-         Serial.print(F(" deleted"));
-         Serial.println();;
+         //Serial.print(i+1);
+         //Serial.print(F(" deleted"));
+         //Serial.println();
          
          FileSystem.remove(deleteFile); //remove delete.txt now that tag has been cleared
          beep(); //beep if update has completed
@@ -561,13 +596,12 @@ void runPython() {
   }
 
 
+
 /**********************************************************************************************************************
 *                                                  Feed Now request function
 ***********************************************************************************************************************/  
 
   void feedNowRequest() {
-    
-    char feedNowFilePath[] = "/feedmation/feednow/feednow.txt";
     
     // if feed Now file exists then parse and despense food
     if (FileSystem.exists(feedNowFilePath)) {
@@ -587,8 +621,8 @@ void runPython() {
       data.toCharArray(convertdata, size+1);
       
       int steps =  cup * atof(convertdata);
-      Serial.print(F("Feed Now in steps: "));
-      Serial.println(steps);
+      //Serial.print(F("Feed Now in steps: "));
+      //Serial.println(steps);
       for(int j = 0; j <= steps; j++)
       {
         anticlockwise();
@@ -601,11 +635,12 @@ void runPython() {
            
       data = String(""); //clear data
       readFile.close();
-      Serial.println();
+      //Serial.println();
       FileSystem.remove(feedNowFilePath); //remove feednow.txt now that tag has been cleared
       beep(); //beep if feed now has completed
     }
   }
+  
   
   
 /**********************************************************************************************************************
@@ -613,9 +648,6 @@ void runPython() {
 ***********************************************************************************************************************/  
 
   void tankStatus() {
-    
-    char tankEmptyFile[] = "/feedmation/tank_status/tank_empty.txt";
-    char tankFullFile[] = "/feedmation/tank_status/tank_full.txt";
    
     //check food tank level
     int LDRReading = analogRead(A1);
@@ -712,8 +744,10 @@ void loop() {
     //runPython();
     parseTagDataFiles();
     feedNowRequest();
-    Serial.print(F("Free Memory = "));
-    Serial.println(getFreeMemory());
+    //Serial.print(F("Free Memory = "));
+    //Serial.println(getFreeMemory());
+    
+    /*
     Serial.println(F("Pet Struct Info:"));
     for (int i = 0; i < 4; ++i) 
     {
@@ -726,7 +760,9 @@ void loop() {
         Serial.println(animal[i].slot1Eaten);
         Serial.println(animal[i].slot2Eaten);
         Serial.println(lockoutTime[i]);
-    }  
+    }
+    */
+    
   }
  
    //reset time slot variables after time slot passes
