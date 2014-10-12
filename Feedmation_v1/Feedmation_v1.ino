@@ -56,7 +56,7 @@ boolean systemBoot = true;
 
 //animal settings struct
 struct animalSettings{
-   char* tag;
+   char tag[11];
    float amount;
    long slot1Start;
    long slot1End;
@@ -64,16 +64,18 @@ struct animalSettings{
    long slot2End;
    int slot1Eaten;
    int slot2Eaten;
-   long lockoutTime;
+   //long lockoutTime;
 };
 
 //array of animal setting struct for each tag\animal
-animalSettings animal[3];
+animalSettings animal[4];
+
+long lockoutTime[4] = {0,0,0,0};
 
 void initAnimalSettings() {
   //declaring animal settings
   //animal one 
-  animal[0].tag = "0000000000";
+  strcpy (animal[0].tag, "0000000000");
   animal[0].amount = 0; //amount of food in cups
   animal[0].slot1Start = 0;
   animal[0].slot1End = 0;
@@ -81,9 +83,9 @@ void initAnimalSettings() {
   animal[0].slot2End = 0;
   animal[0].slot1Eaten = 0;
   animal[0].slot2Eaten = 0;
-  animal[0].lockoutTime = 0;
+  //animal[0].lockoutTime = 0;
   //animal two 
-  animal[1].tag = "0000000000";
+  strcpy (animal[1].tag, "0000000000");
   animal[1].amount = 0; //amount of food in cups
   animal[1].slot1Start = 0;
   animal[1].slot1End = 0;
@@ -91,9 +93,9 @@ void initAnimalSettings() {
   animal[1].slot2End = 0;
   animal[1].slot1Eaten = 0;
   animal[1].slot2Eaten = 0;
-  animal[1].lockoutTime = 0;
+  //animal[1].lockoutTime = 0;
   //animal three
-  animal[2].tag = "0000000000";
+  strcpy (animal[2].tag, "0000000000");
   animal[2].amount = 0; //amount of food in cups
   animal[2].slot1Start = 0;
   animal[2].slot1End = 0;
@@ -101,9 +103,9 @@ void initAnimalSettings() {
   animal[2].slot2End = 0;
   animal[2].slot1Eaten = 0;
   animal[2].slot2Eaten = 0;
-  animal[2].lockoutTime = 0;
+  //animal[2].lockoutTime = 0;
  //animal four
-  animal[3].tag = "0000000000";
+  strcpy (animal[3].tag, "0000000000");
   animal[3].amount = 0; //amount of food in cups
   animal[3].slot1Start = 0;
   animal[3].slot1End = 0;
@@ -111,7 +113,7 @@ void initAnimalSettings() {
   animal[3].slot2End = 0;
   animal[3].slot1Eaten = 0;
   animal[3].slot2Eaten = 0;
-  animal[3].lockoutTime = 0;
+  //animal[3].lockoutTime = 0;
 }
 
 /**********************************************************************************************************************
@@ -223,7 +225,7 @@ void processFeedingRequest() {
     {
       int deniedFeeding = 1; 
       // if pet has eaten within five minutes then don't process tag read
-      if ( secSinceMidnight > animal[i].lockoutTime ) {
+      if ( secSinceMidnight > lockoutTime[i] ) {
         //if tag parsed matches animal and they havent eatten yet, then feed.
         if ( (strcmp(animal[i].tag, tagId) == 0) && ((((animal[i].slot1Start <= secSinceMidnight) && ((animal[i].slot1Start + animal[i].slot1End) >= secSinceMidnight)) && (animal[i].slot1Eaten == 0)) || (((animal[i].slot2Start <= secSinceMidnight) && ((animal[i].slot2Start + animal[i].slot2End) >= secSinceMidnight)) && (animal[i].slot2Eaten == 0))))
         {
@@ -246,7 +248,7 @@ void processFeedingRequest() {
           Serial.println(F(" was fed!"));
           //animal[i].feedAttempts++;
           deniedFeeding = 0;
-          animal[i].lockoutTime = secSinceMidnight + (long)(60);
+          lockoutTime[i] = secSinceMidnight + (long)(60);
           delay(1000);
       
         }
@@ -285,11 +287,11 @@ void resetSlots() {
   //reset slots for each pet if time is greater then 11pm 
   
   if ( secSinceMidnight > 82800 ) {
-    for (int i = 0; i + 3; ++i) 
+    for (int i = 0; i < 4; ++i) 
     {
       animal[i].slot1Eaten = 0;
       animal[i].slot2Eaten = 0;
-      animal[i].lockoutTime = 0;
+      lockoutTime[i] = 0;
     }
   }
   
@@ -516,6 +518,7 @@ void runPython() {
          //reset eaten slots
          animal[i].slot1Eaten = 0;
          animal[i].slot2Eaten = 0;
+         lockoutTime[i] = 0;
          FileSystem.remove(updatedFile); //remove updated.txt now that tag has been updated
          beep(); //beep if update has completed 
        }
@@ -530,7 +533,7 @@ void runPython() {
        //if updated.txt file exists then update the pet struct
        if (FileSystem.exists(deleteFile)) {
          
-         animal[i].tag = "0000000000";
+         strcpy (animal[i].tag, "0000000000");
          animal[i].amount = 0;
          animal[i].slot1Start = 0;
          animal[i].slot1End = 0;
@@ -538,7 +541,7 @@ void runPython() {
          animal[i].slot2End = 0;
          animal[i].slot1Eaten = 0;
          animal[i].slot2Eaten = 0;
-         animal[i].lockoutTime = 0;
+         lockoutTime[i] = 0;
          
          Serial.print(i+1);
          Serial.print(F(" deleted"));
@@ -638,9 +641,9 @@ void runPython() {
           FileSystem.remove(tankFullFile); 
         }
         
-        File file = FileSystem.open(tankEmptyFile, FILE_WRITE);
-        file.close();
-        Serial.print(F("Tank empty file was created"));
+        File emptyFile = FileSystem.open(tankEmptyFile, FILE_WRITE);
+        emptyFile.close();
+        //Serial.println(F("Tank empty file was created"));
         
       } else {
         
@@ -653,9 +656,9 @@ void runPython() {
           FileSystem.remove(tankFullFile); 
         }
         
-        File file = FileSystem.open(tankFullFile, FILE_WRITE);
-        file.close();
-        Serial.print(F("Tank full file was created"));
+        File fullFile = FileSystem.open(tankFullFile, FILE_WRITE);
+        fullFile.close();
+        //Serial.println(F("Tank full file was created"));
         
         
       }
@@ -710,6 +713,20 @@ void loop() {
     parseTagDataFiles();
     feedNowRequest();
     Serial.print(F("Free Memory = "));
+    Serial.println(getFreeMemory());
+    Serial.println(F("Pet Struct Info:"));
+    for (int i = 0; i < 4; ++i) 
+    {
+        Serial.println(animal[i].tag);
+        Serial.println(animal[i].amount);
+        Serial.println(animal[i].slot1Start);
+        Serial.println(animal[i].slot1End);
+        Serial.println(animal[i].slot2Start);
+        Serial.println(animal[i].slot2End);
+        Serial.println(animal[i].slot1Eaten);
+        Serial.println(animal[i].slot2Eaten);
+        Serial.println(lockoutTime[i]);
+    }  
   }
  
    //reset time slot variables after time slot passes
