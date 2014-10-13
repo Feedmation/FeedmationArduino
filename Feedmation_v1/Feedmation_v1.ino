@@ -284,10 +284,11 @@ void processFeedingRequest() {
             digitalWrite(motorPin2, LOW);
             digitalWrite(motorPin3, LOW);
             digitalWrite(motorPin4, LOW);
-            
-            char amountChar[5];
-            sprintf(amountChar, "%.2f", animal[i].amount);
-            logData.concat(amountChar); //add amount depensed to log data
+            char floatString[10];
+            char amountString[10];
+            dtostrf(animal[i].amount,1,2,floatString);
+            sprintf(amountString, "%s", floatString);
+            logData.concat(amountString); //add amount depensed to log data
             //Serial.print(animal[i].tag);
             //Serial.println(F(" was fed!"));
             //animal[i].feedAttempts++;
@@ -302,7 +303,7 @@ void processFeedingRequest() {
             //animal[i].feedAttempts++;
             //Serial.print(animal[i].tag);
             //Serial.println(F("already ate!"));
-            logData.concat(String("0.00")); //add amount depensed to log data
+            logData.concat("0.00"); //add amount depensed to log data
           } 
       
            //if pet ate then mark eaten variable for that time slot
@@ -744,8 +745,8 @@ void loop() {
     //runPython();
     parseTagDataFiles();
     feedNowRequest();
-    //Serial.print(F("Free Memory = "));
-    //Serial.println(getFreeMemory());
+    Serial.print(F("Free Memory = "));
+    Serial.println(getFreeMemory());
     
     /*
     Serial.println(F("Pet Struct Info:"));
