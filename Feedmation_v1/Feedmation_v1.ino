@@ -32,6 +32,16 @@ unsigned int readData[10]; // data read from serial
 int rfidCounter = -1; // counter to keep position in the buffer
 char tagId[11]; // final tag ID converted to a string
 
+//Scale Variables
+//Food bowl scale
+float FoodLoadA = 0; // grams
+int FoodAnalogvalA = 54; // load cell reading taken with loadA on the load cell
+float FoodLoadB = 140; // grams
+int FoodAnalogvalB = 71.5; // load cell reading taken with loadB on the load cell
+float analogValueAverage = 0;
+
+//Pet scale
+
 //declare variables
 int motorSpeed = 4800;  //variable to set stepper speed
 int cup = 208; // number of steps for one cup of food
@@ -284,16 +294,26 @@ void processFeedingRequest() {
             digitalWrite(motorPin2, LOW);
             digitalWrite(motorPin3, LOW);
             digitalWrite(motorPin4, LOW);
+            
+            int analogValue = analogRead(A0); //get depensed load cell reading from food bowl
+            analogValueAverage = 0.99*analogValueAverage + 0.01*analogValue; //smooth reading a bit
+            float depensedLoad = analogToLoad(analogValueAverage, FoodAnalogvalA, FoodAnalogvalB, FoodLoadA, FoodLoadB); //get load in lbs
+            
             char floatString[10];
             char amountString[10];
             dtostrf(animal[i].amount,1,2,floatString);
             sprintf(amountString, "%s", floatString);
             logData.concat(amountString); //add amount depensed to log data
+            logData.concat(",");
+            
+            deniedFeeding = 0;
+            lockoutTime[i] = secSinceMidnight + (long)(60);
+            
+            //put loop check code here to keep looking for pet tag
+            
             //Serial.print(animal[i].tag);
             //Serial.println(F(" was fed!"));
             //animal[i].feedAttempts++;
-            deniedFeeding = 0;
-            lockoutTime[i] = secSinceMidnight + (long)(60);
             delay(1000);
         
           }
@@ -700,6 +720,25 @@ void clearSerial() {
     } 
     
   }
+  
+  
+  
+/**********************************************************************************************************************
+*                                                  Scale functions
+***********************************************************************************************************************/  
+
+float analogToLoad(float analogval, float analogvalA, float analogvalB, float loadA, float loadB){
+  // using a custom map-function, because the standard arduino map function only uses int
+  float load = mapfloat(analogval, analogvalA, analogvalB, loadA, loadB);
+  //load = load * .002205;
+  return load;
+}
+
+float mapfloat(float x, float in_min, float in_max, float out_min, float out_max)
+{
+  return (x - in_min) * (out_max - out_min) / (in_max - in_min) + out_min;
+}
+
   
   
 
