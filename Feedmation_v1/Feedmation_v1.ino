@@ -144,6 +144,37 @@ void initAnimalSettings() {
 
 
 /**********************************************************************************************************************
+*                                                         Setup
+***********************************************************************************************************************/
+
+void setup() {
+  //declare the motor pins as outputs
+  pinMode(motorPin1, OUTPUT);
+  pinMode(motorPin2, OUTPUT);
+  pinMode(motorPin3, OUTPUT);
+  pinMode(motorPin4, OUTPUT);  
+  
+  // serial setup for brigde, RFID and Serial monitor
+  Bridge.begin();
+  RFID.begin(9600);
+  Serial.begin(9600);
+
+  //pet feeder setup
+  initAnimalSettings();
+  pinMode(tankLED, OUTPUT);
+  digitalWrite(tankLED, HIGH);
+  pinMode(speaker, OUTPUT);
+ 
+  //real time clock setup
+  DS1307.begin();
+  
+   // Setup File IO
+  FileSystem.begin();
+}
+
+
+
+/**********************************************************************************************************************
 *                                                      Speaker Code
 ***********************************************************************************************************************/
 void beep() {
@@ -192,37 +223,6 @@ void setOutput(int out)
 
 
 /**********************************************************************************************************************
-*                                                         Setup
-***********************************************************************************************************************/
-
-void setup() {
-  //declare the motor pins as outputs
-  pinMode(motorPin1, OUTPUT);
-  pinMode(motorPin2, OUTPUT);
-  pinMode(motorPin3, OUTPUT);
-  pinMode(motorPin4, OUTPUT);  
-  
-  // serial setup for brigde, RFID and Serial monitor
-  Bridge.begin();
-  RFID.begin(9600);
-  Serial.begin(9600);
-
-  //pet feeder setup
-  initAnimalSettings();
-  pinMode(tankLED, OUTPUT);
-  digitalWrite(tankLED, HIGH);
-  pinMode(speaker, OUTPUT);
- 
-  //real time clock setup
-  DS1307.begin();
-  
-   // Setup File IO
-  FileSystem.begin();
-}
-
-
-
-/**********************************************************************************************************************
 *                                             Tag Parsing and Animal Feeding
 ***********************************************************************************************************************/
 
@@ -257,8 +257,12 @@ void processFeedingRequest() {
       // if pet has eaten within one minute then don't process tag read
       if ( secSinceMidnight > lockoutTime[i] ) {
         
+        //copy tagID for comparison through out this function
+        char tagCompare[11];
+        strcpy (tagCompare, tagId);
+        
         //if tag is matches register pet tags then process feeding
-        if ( (strcmp(animal[i].tag, tagId) == 0) ) {
+        if ( (strcmp(animal[i].tag, tagCompare) == 0) ) {
         
           //***Data Logging Starting if tag match found***
           //get current time from clock
@@ -272,13 +276,13 @@ void processFeedingRequest() {
           File logFile = FileSystem.open(logPathFile, FILE_WRITE); //open log file with date stamp for filename
           free(logPathFile);
           String logData =  String("");  //create string for log file
-          logData.concat(tagId); //add tag id to log data
+          logData.concat(tagCompare); //add tag id to log data
           logData.concat(",");
           logData.concat(dateTime); //add date time stamp to log data
           logData.concat(",");
 
           //if tag parsed matches pet tag and they havent eatten yet, then feed.
-          if ( (strcmp(animal[i].tag, tagId) == 0) && ((((animal[i].slot1Start <= secSinceMidnight) && ((animal[i].slot1Start + animal[i].slot1End) >= secSinceMidnight)) && (animal[i].slot1Eaten == 0)) || (((animal[i].slot2Start <= secSinceMidnight) && ((animal[i].slot2Start + animal[i].slot2End) >= secSinceMidnight)) && (animal[i].slot2Eaten == 0))))
+          if ( (strcmp(animal[i].tag, tagCompare) == 0) && ((((animal[i].slot1Start <= secSinceMidnight) && ((animal[i].slot1Start + animal[i].slot1End) >= secSinceMidnight)) && (animal[i].slot1Eaten == 0)) || (((animal[i].slot2Start <= secSinceMidnight) && ((animal[i].slot2Start + animal[i].slot2End) >= secSinceMidnight)) && (animal[i].slot2Eaten == 0))))
           {
             //Dispence animals food allotment
             int amount =  cup * animal[i].amount;
@@ -307,18 +311,59 @@ void processFeedingRequest() {
             logData.concat(",");
             
             deniedFeeding = 0;
-            lockoutTime[i] = secSinceMidnight + (long)(60);
             
-            //put loop check code here to keep looking for pet tag
+            unsigned long lastTagScanTime = millis();  // last time pets tag was read, in milliseconds
+            const unsigned long stopLookingInterval = 10L * 1000L;  // stop looking time is set to 10 seconds, in milliseconds
+            
+            //While animal is still here feeding, keep looping and looking for a tag until animal has left feeder for more then 10 seconds
+            while(millis() - lastTagScanTime < stopLookingInterval){
+              
+              //Looking for a tag
+              if (RFID.available() > 0) {
+                  // read the incoming byte:
+                  readVal = RFID.read();
+                
+                  // a "2" signals the beginning of a tag
+                  if (readVal == 2) {
+                    rfidCounter = 0; // start reading
+                } 
+                // a "3" signals the end of a tag
+                else if (readVal == 3) {
+                    
+                    // if tag scanned the parse tag and convert id to a string
+                    parseTag();
+                    
+                    //if tag still matches pet that started the feed request, then set new scanned time  
+                    if ((strcmp(tagCompare, tagId) == 0)) {
+                      lastTagScanTime = millis();
+                      Serial.println(F("Pet is still feeding"));
+                    }
+                    // clear serial to prevent multiple reads
+                    clearSerial();
+                    // reset reading state
+                    rfidCounter = -1;
+                }
+                // if we are in the middle of reading a tag
+                else if (rfidCounter >= 0) {
+                    // save valuee
+                    readData[rfidCounter] = readVal;
+                    // increment counter
+                    ++rfidCounter;
+                } 
+              }
+              
+            }
             
             //Serial.print(animal[i].tag);
             //Serial.println(F(" was fed!"));
             //animal[i].feedAttempts++;
+            
+            lockoutTime[i] = secSinceMidnight + (long)(60);
             delay(1000);
         
           }
   
-          if ( (strcmp(animal[i].tag, tagId) == 0) && deniedFeeding == 1 ) { 
+          if ( (strcmp(animal[i].tag, tagCompare) == 0) && deniedFeeding == 1 ) { 
             beep();
             //animal[i].feedAttempts++;
             //Serial.print(animal[i].tag);
@@ -327,7 +372,7 @@ void processFeedingRequest() {
           } 
       
            //if pet ate then mark eaten variable for that time slot
-           if ( (strcmp(animal[i].tag, tagId) == 0) && ((((animal[i].slot1Start <= secSinceMidnight) && ((animal[i].slot1Start + animal[i].slot1End) >= secSinceMidnight)) && (animal[i].slot1Eaten == 0)) || (((animal[i].slot2Start <= secSinceMidnight) && ((animal[i].slot2Start + animal[i].slot2End) >= secSinceMidnight)) && (animal[i].slot2Eaten == 0))))
+           if ( (strcmp(animal[i].tag, tagCompare) == 0) && ((((animal[i].slot1Start <= secSinceMidnight) && ((animal[i].slot1Start + animal[i].slot1End) >= secSinceMidnight)) && (animal[i].slot1Eaten == 0)) || (((animal[i].slot2Start <= secSinceMidnight) && ((animal[i].slot2Start + animal[i].slot2End) >= secSinceMidnight)) && (animal[i].slot2Eaten == 0))))
            {
             if ((animal[i].slot1Start <= secSinceMidnight) && ((animal[i].slot1Start + animal[i].slot1End) >= secSinceMidnight)) {
               animal[i].slot1Eaten = 1;
