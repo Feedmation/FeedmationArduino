@@ -240,7 +240,7 @@ void processFeedingRequest() {
 	// convert id to a string
   parseTag();
 
-	// print tag id
+  // print tag id
   //printTag();
   
   //get time in seconds
@@ -269,12 +269,6 @@ void processFeedingRequest() {
           DS1307.getDate(RTCValues);
           sprintf(dateTime, "20%02d-%02d-%02d %02d:%02d:%02d", RTCValues[0], RTCValues[1], RTCValues[2], RTCValues[4], RTCValues[5], RTCValues[6]);//print time to char array
           
-          char* logPathFile = (char*)malloc(strlen(logPath)+20); //create path plus date stamp for filename
-          strcpy(logPathFile, logPath);
-          strcat(logPathFile, dateTime);
-          
-          File logFile = FileSystem.open(logPathFile, FILE_WRITE); //open log file with date stamp for filename
-          free(logPathFile);
           String logData =  String("");  //create string for log file
           logData.concat(tagCompare); //add tag id to log data
           logData.concat(",");
@@ -301,7 +295,7 @@ void processFeedingRequest() {
             
             int analogValue = analogRead(A0); //get depensed load cell reading from food bowl
             analogValueAverage = 0.99*analogValueAverage + 0.01*analogValue; //smooth reading a bit
-            float depensedLoad = analogToLoad(analogValueAverage, FoodAnalogvalA, FoodAnalogvalB, FoodLoadA, FoodLoadB); //get load in lbs
+            float depensedWeight = analogToLoad(analogValueAverage, FoodAnalogvalA, FoodAnalogvalB, FoodLoadA, FoodLoadB); //get load in lbs
             
             char floatString[10];
             char amountString[10];
@@ -354,9 +348,17 @@ void processFeedingRequest() {
               
             }
             
+            
             //Serial.print(animal[i].tag);
             //Serial.println(F(" was fed!"));
-            //animal[i].feedAttempts++;
+            
+            analogValue = analogRead(A0); //get load cell reading from food bowl after pet is done feeding
+            analogValueAverage = 0.99*analogValueAverage + 0.01*analogValue; //smooth reading a bit
+            float weightAfter = analogToLoad(analogValueAverage, FoodAnalogvalA, FoodAnalogvalB, FoodLoadA, FoodLoadB); //get load in lbs
+            
+            float weightEatten = depensedWeight - weightAfter;
+            
+            
             
             lockoutTime[i] = secSinceMidnight + (long)(60);
             delay(1000);
@@ -383,7 +385,13 @@ void processFeedingRequest() {
            }
           
           //***End Data Logging*** 
-          logFile.print(logData);
+          
+          char* logPathFile = (char*)malloc(strlen(logPath)+20); //create path plus date stamp for filename
+          strcpy(logPathFile, logPath);
+          strcat(logPathFile, dateTime);
+          File logFile = FileSystem.open(logPathFile, FILE_WRITE); //open log file with date stamp for filename
+          free(logPathFile);
+          logFile.print(logData); //print log data to file
           logFile.close();
           logData =  String("");
               
@@ -775,7 +783,7 @@ void clearSerial() {
 float analogToLoad(float analogval, float analogvalA, float analogvalB, float loadA, float loadB){
   // using a custom map-function, because the standard arduino map function only uses int
   float load = mapfloat(analogval, analogvalA, analogvalB, loadA, loadB);
-  //load = load * .002205;
+  load = load * .002205;
   return load;
 }
 
