@@ -15,10 +15,10 @@
 SoftwareSerial RFID(8, 3); // RX and TX
 int speaker = 9;
 int tankLED = 12;
-int motorPin1 = 4;    // Blue   - 28BYJ48 pin 1
-int motorPin2 = 5;    // Pink   - 28BYJ48 pin 2
-int motorPin3 = 6;    // Yellow - 28BYJ48 pin 3
-int motorPin4 = 7;    // Orange - 28BYJ48 pin 4
+int motorPin1 = 4;    // Blue pin 1
+int motorPin2 = 5;    // Pink pin 2
+int motorPin3 = 6;    // Yellow pin 3
+int motorPin4 = 7;    // Orange pin 4
 
 
 
@@ -34,10 +34,11 @@ char tagId[11]; // final tag ID converted to a string
 
 //Scale Variables
 //Food bowl scale
+int analogValue;
 float FoodLoadA = 0; // grams
-int FoodAnalogvalA = 57.45; // load cell reading taken with loadA on the load cell
+int FoodAnalogvalA = 80.5; // load cell reading taken with loadA on the load cell
 float FoodLoadB = 140; // grams
-int FoodAnalogvalB = 83.45; // load cell reading taken with loadB on the load cell
+int FoodAnalogvalB = 100; // load cell reading taken with loadB on the load cell
 float analogValueAverage = 0;
 
 //Pet scale
@@ -293,15 +294,19 @@ void processFeedingRequest() {
             digitalWrite(motorPin3, LOW);
             digitalWrite(motorPin4, LOW);
             
-            int analogValue = analogRead(A0); //get depensed load cell reading from food bowl
+            analogValue = analogRead(A0); //get depensed load cell reading from food bowl
             analogValueAverage = 0.99*analogValueAverage + 0.01*analogValue; //smooth reading a bit
             float depensedWeight = analogToLoad(analogValueAverage, FoodAnalogvalA, FoodAnalogvalB, FoodLoadA, FoodLoadB); //get load in lbs
             
+            /*
             char floatString[10];
             char amountString[10];
             dtostrf(animal[i].amount,1,2,floatString);
             sprintf(amountString, "%s", floatString);
-            logData.concat(amountString); //add amount depensed to log data
+            */
+           
+            int amountInt = int((animal[i].amount * 100));
+            logData.concat(char(amountInt)); //add amount depensed to log data
             logData.concat(",");
             
             deniedFeeding = 0;
@@ -330,7 +335,7 @@ void processFeedingRequest() {
                     //if tag still matches pet that started the feed request, then set new scanned time  
                     if ((strcmp(tagCompare, tagId) == 0)) {
                       lastTagScanTime = millis();
-                      Serial.println(F("Pet is still feeding"));
+                      //Serial.println(F("Pet is still feeding"));
                     }
                     // clear serial to prevent multiple reads
                     clearSerial();
@@ -350,20 +355,21 @@ void processFeedingRequest() {
             
             
             //Serial.print(animal[i].tag);
-            Serial.println(F("Was fed!"));
+            //Serial.println(F("Was fed!"));
             
             analogValue = analogRead(A0); //get load cell reading from food bowl after pet is done feeding
             analogValueAverage = 0.99*analogValueAverage + 0.01*analogValue; //smooth reading a bit
             float weightAfter = analogToLoad(analogValueAverage, FoodAnalogvalA, FoodAnalogvalB, FoodLoadA, FoodLoadB); //get load in lbs
             
-            float weightEatten = depensedWeight - weightAfter;
+            float weightEaten = depensedWeight - weightAfter;
             
+            /*
             char floatString2[10];
             char amountString2[10];
             dtostrf(weightEatten,1,2,floatString2);
             sprintf(amountString2, "%s", floatString2);
             logData.concat(amountString2); //add amount depensed to log data
-            
+            */
             
             lockoutTime[i] = secSinceMidnight + (long)(60);
             delay(1000);
@@ -805,7 +811,7 @@ float mapfloat(float x, float in_min, float in_max, float out_min, float out_max
 ***********************************************************************************************************************/
 
 void loop() { 
-
+  
   //get current time
   DS1307.getDate(RTCValues);
 
@@ -829,7 +835,7 @@ void loop() {
     }
     // if we are in the middle of reading a tag
     else if (rfidCounter >= 0) {
-        // save valuee
+        // save value
         readData[rfidCounter] = readVal;
         // increment counter
         ++rfidCounter;
@@ -842,8 +848,15 @@ void loop() {
     //runPython();
     parseTagDataFiles();
     feedNowRequest();
+    
     Serial.print(F("Free Memory = "));
     Serial.println(getFreeMemory());
+    
+    analogValue = analogRead(A0); //get depensed load cell reading from food bowl
+    
+    int depensedWeight = analogToLoad(float(analogValue), FoodAnalogvalA, FoodAnalogvalB, FoodLoadA, FoodLoadB); //get load in grams
+    Serial.print("analogValue: ");Serial.println(analogValue);
+    Serial.print("             load: ");Serial.println(depensedWeight);
     
     /*
     Serial.println(F("Pet Struct Info:"));
@@ -860,6 +873,7 @@ void loop() {
         Serial.println(lockoutTime[i]);
     }
     */
+    
     
   }
  
