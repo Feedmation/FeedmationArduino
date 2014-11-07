@@ -35,9 +35,9 @@ char tagId[11]; // final tag ID converted to a string
 //Scale Variables
 //Food bowl scale
 float FoodLoadA = 0; // grams
-int FoodAnalogvalA = 54; // load cell reading taken with loadA on the load cell
+int FoodAnalogvalA = 57.45; // load cell reading taken with loadA on the load cell
 float FoodLoadB = 140; // grams
-int FoodAnalogvalB = 71.5; // load cell reading taken with loadB on the load cell
+int FoodAnalogvalB = 83.45; // load cell reading taken with loadB on the load cell
 float analogValueAverage = 0;
 
 //Pet scale
@@ -350,7 +350,7 @@ void processFeedingRequest() {
             
             
             //Serial.print(animal[i].tag);
-            //Serial.println(F(" was fed!"));
+            Serial.println(F("Was fed!"));
             
             analogValue = analogRead(A0); //get load cell reading from food bowl after pet is done feeding
             analogValueAverage = 0.99*analogValueAverage + 0.01*analogValue; //smooth reading a bit
@@ -358,6 +358,11 @@ void processFeedingRequest() {
             
             float weightEatten = depensedWeight - weightAfter;
             
+            char floatString2[10];
+            char amountString2[10];
+            dtostrf(weightEatten,1,2,floatString2);
+            sprintf(amountString2, "%s", floatString2);
+            logData.concat(amountString2); //add amount depensed to log data
             
             
             lockoutTime[i] = secSinceMidnight + (long)(60);
