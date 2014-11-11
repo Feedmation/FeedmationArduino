@@ -270,6 +270,7 @@ void processFeedingRequest() {
           DS1307.getDate(RTCValues);
           sprintf(dateTime, "20%02d-%02d-%02d %02d:%02d:%02d", RTCValues[0], RTCValues[1], RTCValues[2], RTCValues[4], RTCValues[5], RTCValues[6]);//print time to char array
           
+          
           String logData =  String("");  //create string for log file
           logData.concat(tagCompare); //add tag id to log data
           logData.concat(",");
@@ -277,7 +278,7 @@ void processFeedingRequest() {
           logData.concat(",");
 
           //if tag parsed matches pet tag and they havent eatten yet, then feed.
-          if ( (strcmp(animal[i].tag, tagCompare) == 0) && ((((animal[i].slot1Start <= secSinceMidnight) && ((animal[i].slot1Start + animal[i].slot1End) >= secSinceMidnight)) && (animal[i].slot1Eaten == 0)) || (((animal[i].slot2Start <= secSinceMidnight) && ((animal[i].slot2Start + animal[i].slot2End) >= secSinceMidnight)) && (animal[i].slot2Eaten == 0))))
+          if ( (strcmp(animal[i].tag, tagCompare) == 0) && ((((animal[i].slot1Start <= secSinceMidnight) && (animal[i].slot1End >= secSinceMidnight)) && (animal[i].slot1Eaten == 0)) || (((animal[i].slot2Start <= secSinceMidnight) && (animal[i].slot2End >= secSinceMidnight)) && (animal[i].slot2Eaten == 0))))
           {
             //Dispence animals food allotment
             int amount =  cup * animal[i].amount;
@@ -297,15 +298,8 @@ void processFeedingRequest() {
             analogValueAOne = analogRead(A0); //get depensed load cell reading from food bowl
             int depensedWeight = int(analogToLoad(analogValueAOne, FoodAnalogvalA, FoodAnalogvalB, FoodLoadA, FoodLoadB)); //get load in grams
     
-            /*
-            char floatString[10];
-            char amountString[10];
-            dtostrf(animal[i].amount,1,2,floatString);
-            sprintf(amountString, "%s", floatString);
-            */
-           
             int amountInt = int((animal[i].amount * 100));
-            logData.concat(char(amountInt)); //add amount depensed times 100 to log data
+            logData.concat(amountInt); //add amount depensed times 100 to log data
             logData.concat(",");
             
             deniedFeeding = 0;
@@ -358,9 +352,12 @@ void processFeedingRequest() {
             
             analogValueAOne = analogRead(A0); //get after eaten load cell reading from food bowl
             int weightAfter = int(analogToLoad(analogValueAOne, FoodAnalogvalA, FoodAnalogvalB, FoodLoadA, FoodLoadB)); //get load in grams
-    
             int weightEaten = depensedWeight - weightAfter; //take depensed weight minus weight after to calculate eaten weight
-            logData.concat(char(weightEaten)); //add amount eaten amount in grams to log data
+            if (weightEaten <= 10) {
+              logData.concat("0"); //add amount eaten to log data should be zero
+            } else { 
+              logData.concat(weightEaten); //add amount eaten amount in grams to log data
+            }
             
             lockoutTime[i] = secSinceMidnight + (long)(60);
             delay(1000);
@@ -422,24 +419,30 @@ void processFeedingRequest() {
             
             analogValueAOne = analogRead(A0); //get after eaten load cell reading from food bowl
             int weightAfter = int(analogToLoad(analogValueAOne, FoodAnalogvalA, FoodAnalogvalB, FoodLoadA, FoodLoadB)); //get load in grams
-    
+            
             int weightEaten = weightBefore - weightAfter; //take depensed weight minus weight after to calculate eaten weight
             
             if (weightEaten <= 10) {
-              logData.concat("0"); //add amount depensed to log data should be zero
+              logData.concat("0"); //add amount eaten to log data should be zero
             } else { 
-              logData.concat(char(weightEaten)); //add amount eaten amount in grams to log data
+              logData.concat(weightEaten); //add amount eaten amount in grams to log data
             }
+            
+            //print for testing
+            //Serial.println(F("Scale Weights"));
+            //Serial.println(weightBefore);
+            //Serial.println(weightAfter);
+            //Serial.println(weightEaten);
             
           } 
       
            //if pet ate then mark eaten variable for that time slot
-           if ( (strcmp(animal[i].tag, tagCompare) == 0) && ((((animal[i].slot1Start <= secSinceMidnight) && ((animal[i].slot1Start + animal[i].slot1End) >= secSinceMidnight)) && (animal[i].slot1Eaten == 0)) || (((animal[i].slot2Start <= secSinceMidnight) && ((animal[i].slot2Start + animal[i].slot2End) >= secSinceMidnight)) && (animal[i].slot2Eaten == 0))))
+           if ( (strcmp(animal[i].tag, tagCompare) == 0) && ((((animal[i].slot1Start <= secSinceMidnight) && ( animal[i].slot1End >= secSinceMidnight)) && (animal[i].slot1Eaten == 0)) || (((animal[i].slot2Start <= secSinceMidnight) && (animal[i].slot2End >= secSinceMidnight)) && (animal[i].slot2Eaten == 0))))
            {
-            if ((animal[i].slot1Start <= secSinceMidnight) && ((animal[i].slot1Start + animal[i].slot1End) >= secSinceMidnight)) {
+            if ((animal[i].slot1Start <= secSinceMidnight) && (animal[i].slot1End >= secSinceMidnight)) {
               animal[i].slot1Eaten = 1;
             }
-            if ((animal[i].slot2Start <= secSinceMidnight) && ((animal[i].slot2Start + animal[i].slot2End) >= secSinceMidnight)) {
+            if ((animal[i].slot2Start <= secSinceMidnight) && (animal[i].slot2End >= secSinceMidnight)) {
               animal[i].slot2Eaten = 1;
             }
            }
@@ -916,6 +919,7 @@ void loop() {
         Serial.println(lockoutTime[i]);
     }
     */
+    
     
     
   }
