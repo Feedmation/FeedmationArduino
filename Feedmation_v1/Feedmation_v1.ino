@@ -39,9 +39,12 @@ float FoodLoadA = 0; // grams
 int FoodAnalogvalA = 80; // load cell reading taken with loadA on the load cell
 float FoodLoadB = 140; // grams
 int FoodAnalogvalB = 100; // load cell reading taken with loadB on the load cell
-
-
 //Pet scale
+int analogValueATwo;
+float petLoadA = 0; //lbs
+int petAnalogvalA = 152;
+float petLoadB = 13.5; // lbs
+int petAnalogvalB = 197;
 
 //declare variables
 int motorSpeed = 4800;  //variable to set stepper speed
@@ -270,7 +273,7 @@ void processFeedingRequest() {
           DS1307.getDate(RTCValues);
           sprintf(dateTime, "20%02d-%02d-%02d %02d:%02d:%02d", RTCValues[0], RTCValues[1], RTCValues[2], RTCValues[4], RTCValues[5], RTCValues[6]);//print time to char array
           
-          
+          int petWeight;
           String logData =  String("");  //create string for log file
           logData.concat(tagCompare); //add tag id to log data
           logData.concat(",");
@@ -328,6 +331,8 @@ void processFeedingRequest() {
                     //if tag still matches pet that started the feed request, then set new scanned time  
                     if ((strcmp(tagCompare, tagId) == 0)) {
                       lastTagScanTime = millis();
+                      analogValueATwo = analogRead(A2); //get load cell reading from pet scale
+                      petWeight = int(analogToLoad(analogValueATwo, petAnalogvalA, petAnalogvalB, petLoadA, petLoadB)); //get weight in lbs
                       //Serial.println(F("Pet is still feeding"));
                     }
                     // clear serial to prevent multiple reads
@@ -359,10 +364,13 @@ void processFeedingRequest() {
               logData.concat(weightEaten); //add amount eaten amount in grams to log data
             }
             
+            //add pet weight to log
+            logData.concat(",");
+            logData.concat(petWeight);
             lockoutTime[i] = secSinceMidnight + (long)(60);
             delay(1000);
-        
           }
+          
   
           if ( (strcmp(animal[i].tag, tagCompare) == 0) && deniedFeeding == 1 ) { 
             beep();
@@ -399,6 +407,8 @@ void processFeedingRequest() {
                     //if tag still matches pet that started the feed request, then set new scanned time  
                     if ((strcmp(tagCompare, tagId) == 0)) {
                       lastTagScanTime = millis();
+                      analogValueATwo = analogRead(A2); //get load cell reading from pet scale
+                      petWeight = int(analogToLoad(analogValueATwo, petAnalogvalA, petAnalogvalB, petLoadA, petLoadB)); //get weight in lbs
                       //Serial.println(F("Pet is still feeding"));
                     }
                     // clear serial to prevent multiple reads
@@ -427,6 +437,10 @@ void processFeedingRequest() {
             } else { 
               logData.concat(weightEaten); //add amount eaten amount in grams to log data
             }
+            
+            //add pet weight to log
+            logData.concat(",");
+            logData.concat(petWeight);
             
             //print for testing
             //Serial.println(F("Scale Weights"));
