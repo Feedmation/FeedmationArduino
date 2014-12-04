@@ -99,8 +99,6 @@ struct animalSettings{
 //array of animal setting struct for each tag\animal
 animalSettings animal[4];
 
-long lockoutTime[4] = {0,0,0,0};
-
 void initAnimalSettings() {
   //declaring animal settings
   //animal one 
@@ -112,7 +110,6 @@ void initAnimalSettings() {
   animal[0].slot2End = 0;
   animal[0].slot1Eaten = 0;
   animal[0].slot2Eaten = 0;
-  //animal[0].lockoutTime = 0;
   //animal two 
   strcpy (animal[1].tag, "0000000000");
   animal[1].amount = 0; //amount of food in cups
@@ -122,7 +119,6 @@ void initAnimalSettings() {
   animal[1].slot2End = 0;
   animal[1].slot1Eaten = 0;
   animal[1].slot2Eaten = 0;
-  //animal[1].lockoutTime = 0;
   //animal three
   strcpy (animal[2].tag, "0000000000");
   animal[2].amount = 0; //amount of food in cups
@@ -132,7 +128,6 @@ void initAnimalSettings() {
   animal[2].slot2End = 0;
   animal[2].slot1Eaten = 0;
   animal[2].slot2Eaten = 0;
-  //animal[2].lockoutTime = 0;
  //animal four
   strcpy (animal[3].tag, "0000000000");
   animal[3].amount = 0; //amount of food in cups
@@ -142,7 +137,6 @@ void initAnimalSettings() {
   animal[3].slot2End = 0;
   animal[3].slot1Eaten = 0;
   animal[3].slot2Eaten = 0;
-  //animal[3].lockoutTime = 0;
 }
 
 
@@ -257,223 +251,218 @@ void processFeedingRequest() {
      //loop and find animals settings and process animals request for food
     for (int i = 0; i < 4; ++i) 
     {
-      int deniedFeeding = 1; 
-      // if pet has eaten within one minute then don't process tag read
-      if ( secSinceMidnight > lockoutTime[i] ) {
+      int deniedFeeding = 1;       
+      //copy tagID for comparison through out this function
+      char tagCompare[11];
+      strcpy (tagCompare, tagId);
+      
+      //if tag is matches register pet tags then process feeding
+      if ( (strcmp(animal[i].tag, tagCompare) == 0) ) {
+      
+        //***Data Logging Starting if tag match found***
+        //get current time from clock
+        DS1307.getDate(RTCValues);
+        sprintf(dateTime, "20%02d-%02d-%02d %02d:%02d:%02d", RTCValues[0], RTCValues[1], RTCValues[2], RTCValues[4], RTCValues[5], RTCValues[6]);//print time to char array
         
-        //copy tagID for comparison through out this function
-        char tagCompare[11];
-        strcpy (tagCompare, tagId);
-        
-        //if tag is matches register pet tags then process feeding
-        if ( (strcmp(animal[i].tag, tagCompare) == 0) ) {
-        
-          //***Data Logging Starting if tag match found***
-          //get current time from clock
-          DS1307.getDate(RTCValues);
-          sprintf(dateTime, "20%02d-%02d-%02d %02d:%02d:%02d", RTCValues[0], RTCValues[1], RTCValues[2], RTCValues[4], RTCValues[5], RTCValues[6]);//print time to char array
-          
-          int petWeight;
-          String logData =  String("");  //create string for log file
-          logData.concat(tagCompare); //add tag id to log data
-          logData.concat(",");
-          logData.concat(dateTime); //add date time stamp to log data
-          logData.concat(",");
+        int petWeight;
+        String logData =  String("");  //create string for log file
+        logData.concat(tagCompare); //add tag id to log data
+        logData.concat(",");
+        logData.concat(dateTime); //add date time stamp to log data
+        logData.concat(",");
 
-          //if tag parsed matches pet tag and they havent eatten yet, then feed.
-          if ( (strcmp(animal[i].tag, tagCompare) == 0) && ((((animal[i].slot1Start <= secSinceMidnight) && (animal[i].slot1End >= secSinceMidnight)) && (animal[i].slot1Eaten == 0)) || (((animal[i].slot2Start <= secSinceMidnight) && (animal[i].slot2End >= secSinceMidnight)) && (animal[i].slot2Eaten == 0))))
+        //if tag parsed matches pet tag and they havent eatten yet, then feed.
+        if ( (strcmp(animal[i].tag, tagCompare) == 0) && ((((animal[i].slot1Start <= secSinceMidnight) && (animal[i].slot1End >= secSinceMidnight)) && (animal[i].slot1Eaten == 0)) || (((animal[i].slot2Start <= secSinceMidnight) && (animal[i].slot2End >= secSinceMidnight)) && (animal[i].slot2Eaten == 0))))
+        {
+          //Dispence animals food allotment
+          int amount =  cup * animal[i].amount;
+          //print steps 
+          //Serial.print(amount);
+          //Serial.println(F(" steps"));
+          for(int j = 0; j <= amount; j++)
           {
-            //Dispence animals food allotment
-            int amount =  cup * animal[i].amount;
-            //print steps 
-            //Serial.print(amount);
-            //Serial.println(F(" steps"));
-            for(int j = 0; j <= amount; j++)
-            {
-              anticlockwise();
-            }
-            //turn off all motor pins when food is dispenced
-            digitalWrite(motorPin1, LOW);
-            digitalWrite(motorPin2, LOW);
-            digitalWrite(motorPin3, LOW);
-            digitalWrite(motorPin4, LOW);
+            anticlockwise();
+          }
+          //turn off all motor pins when food is dispenced
+          digitalWrite(motorPin1, LOW);
+          digitalWrite(motorPin2, LOW);
+          digitalWrite(motorPin3, LOW);
+          digitalWrite(motorPin4, LOW);
+          
+          analogValueAOne = analogRead(A0); //get depensed load cell reading from food bowl
+          int depensedWeight = int(analogToLoad(analogValueAOne, FoodAnalogvalA, FoodAnalogvalB, FoodLoadA, FoodLoadB)); //get load in grams
+  
+          int amountInt = int((animal[i].amount * 100));
+          logData.concat(amountInt); //add amount depensed times 100 to log data
+          logData.concat(",");
+          
+          deniedFeeding = 0;
+          
+          unsigned long lastTagScanTime = millis();  // last time pets tag was read, in milliseconds
+          const unsigned long stopLookingInterval = 10L * 1000L;  // stop looking time is set to 10 seconds, in milliseconds
+          
+          //While animal is still here feeding, keep looping and looking for a tag until animal has left feeder for more then 10 seconds
+          while(millis() - lastTagScanTime < stopLookingInterval){
             
-            analogValueAOne = analogRead(A0); //get depensed load cell reading from food bowl
-            int depensedWeight = int(analogToLoad(analogValueAOne, FoodAnalogvalA, FoodAnalogvalB, FoodLoadA, FoodLoadB)); //get load in grams
-    
-            int amountInt = int((animal[i].amount * 100));
-            logData.concat(amountInt); //add amount depensed times 100 to log data
-            logData.concat(",");
-            
-            deniedFeeding = 0;
-            
-            unsigned long lastTagScanTime = millis();  // last time pets tag was read, in milliseconds
-            const unsigned long stopLookingInterval = 10L * 1000L;  // stop looking time is set to 10 seconds, in milliseconds
-            
-            //While animal is still here feeding, keep looping and looking for a tag until animal has left feeder for more then 10 seconds
-            while(millis() - lastTagScanTime < stopLookingInterval){
+            //Looking for a tag
+            if (RFID.available() > 0) {
+                // read the incoming byte:
+                readVal = RFID.read();
               
-              //Looking for a tag
-              if (RFID.available() > 0) {
-                  // read the incoming byte:
-                  readVal = RFID.read();
-                
-                  // a "2" signals the beginning of a tag
-                  if (readVal == 2) {
-                    rfidCounter = 0; // start reading
-                } 
-                // a "3" signals the end of a tag
-                else if (readVal == 3) {
-                    
-                    // if tag scanned the parse tag and convert id to a string
-                    parseTag();
-                    
-                    //if tag still matches pet that started the feed request, then set new scanned time  
-                    if ((strcmp(tagCompare, tagId) == 0)) {
-                      lastTagScanTime = millis();
-                      analogValueATwo = analogRead(A2); //get load cell reading from pet scale
-                      petWeight = int(analogToLoad(analogValueATwo, petAnalogvalA, petAnalogvalB, petLoadA, petLoadB)); //get weight in lbs
-                      //Serial.println(F("Pet is still feeding"));
-                    }
-                    // clear serial to prevent multiple reads
-                    clearSerial();
-                    // reset reading state
-                    rfidCounter = -1;
-                }
-                // if we are in the middle of reading a tag
-                else if (rfidCounter >= 0) {
-                    // save valuee
-                    readData[rfidCounter] = readVal;
-                    // increment counter
-                    ++rfidCounter;
-                } 
+                // a "2" signals the beginning of a tag
+                if (readVal == 2) {
+                  rfidCounter = 0; // start reading
+              } 
+              // a "3" signals the end of a tag
+              else if (readVal == 3) {
+                  
+                  // if tag scanned the parse tag and convert id to a string
+                  parseTag();
+                  
+                  //if tag still matches pet that started the feed request, then set new scanned time  
+                  if ((strcmp(tagCompare, tagId) == 0)) {
+                    lastTagScanTime = millis();
+                    analogValueATwo = analogRead(A2); //get load cell reading from pet scale
+                    petWeight = int(analogToLoad(analogValueATwo, petAnalogvalA, petAnalogvalB, petLoadA, petLoadB)); //get weight in lbs
+                    //Serial.println(F("Pet is still feeding"));
+                  }
+                  // clear serial to prevent multiple reads
+                  clearSerial();
+                  // reset reading state
+                  rfidCounter = -1;
               }
-              
+              // if we are in the middle of reading a tag
+              else if (rfidCounter >= 0) {
+                  // save valuee
+                  readData[rfidCounter] = readVal;
+                  // increment counter
+                  ++rfidCounter;
+              } 
             }
             
-            
-            //Serial.print(animal[i].tag);
-            //Serial.println(F("Was fed!"));
-            
-            analogValueAOne = analogRead(A0); //get after eaten load cell reading from food bowl
-            int weightAfter = int(analogToLoad(analogValueAOne, FoodAnalogvalA, FoodAnalogvalB, FoodLoadA, FoodLoadB)); //get load in grams
-            int weightEaten = depensedWeight - weightAfter; //take depensed weight minus weight after to calculate eaten weight
-            if (weightEaten <= 10) {
-              logData.concat("0"); //add amount eaten to log data should be zero
-            } else { 
-              logData.concat(weightEaten); //add amount eaten amount in grams to log data
-            }
-            
-            //add pet weight to log
-            logData.concat(",");
-            logData.concat(petWeight);
-            lockoutTime[i] = secSinceMidnight + (long)(60);
-            delay(1000);
           }
           
-  
-          if ( (strcmp(animal[i].tag, tagCompare) == 0) && deniedFeeding == 1 ) { 
-            beep();
-            //animal[i].feedAttempts++;
-            //Serial.print(animal[i].tag);
-            //Serial.println(F("already ate!"));
-            logData.concat("0"); //add amount depensed to log data
-            logData.concat(",");
-            
-            analogValueAOne = analogRead(A0); //get load cell reading from food bowl
-            int weightBefore = int(analogToLoad(analogValueAOne, FoodAnalogvalA, FoodAnalogvalB, FoodLoadA, FoodLoadB)); //get load in grams
+          
+          //Serial.print(animal[i].tag);
+          //Serial.println(F("Was fed!"));
+          
+          analogValueAOne = analogRead(A0); //get after eaten load cell reading from food bowl
+          int weightAfter = int(analogToLoad(analogValueAOne, FoodAnalogvalA, FoodAnalogvalB, FoodLoadA, FoodLoadB)); //get load in grams
+          int weightEaten = depensedWeight - weightAfter; //take depensed weight minus weight after to calculate eaten weight
+          if (weightEaten <= 10) {
+            logData.concat("0"); //add amount eaten to log data should be zero
+          } else { 
+            logData.concat(weightEaten); //add amount eaten amount in grams to log data
+          }
+          
+          //add pet weight to log
+          logData.concat(",");
+          logData.concat(petWeight);
+          delay(1000);
+        }
+        
 
-            unsigned long lastTagScanTime = millis();  // last time pets tag was read, in milliseconds
-            const unsigned long stopLookingInterval = 10L * 1000L;  // stop looking time is set to 10 seconds, in milliseconds
+        if ( (strcmp(animal[i].tag, tagCompare) == 0) && deniedFeeding == 1 ) { 
+          beep();
+          //animal[i].feedAttempts++;
+          //Serial.print(animal[i].tag);
+          //Serial.println(F("already ate!"));
+          logData.concat("0"); //add amount depensed to log data
+          logData.concat(",");
+          
+          analogValueAOne = analogRead(A0); //get load cell reading from food bowl
+          int weightBefore = int(analogToLoad(analogValueAOne, FoodAnalogvalA, FoodAnalogvalB, FoodLoadA, FoodLoadB)); //get load in grams
+
+          unsigned long lastTagScanTime = millis();  // last time pets tag was read, in milliseconds
+          const unsigned long stopLookingInterval = 10L * 1000L;  // stop looking time is set to 10 seconds, in milliseconds
+          
+          //While animal is still here feeding, keep looping and looking for a tag until animal has left feeder for more then 10 seconds
+          while(millis() - lastTagScanTime < stopLookingInterval){
             
-            //While animal is still here feeding, keep looping and looking for a tag until animal has left feeder for more then 10 seconds
-            while(millis() - lastTagScanTime < stopLookingInterval){
+            //Looking for a tag
+            if (RFID.available() > 0) {
+                // read the incoming byte:
+                readVal = RFID.read();
               
-              //Looking for a tag
-              if (RFID.available() > 0) {
-                  // read the incoming byte:
-                  readVal = RFID.read();
-                
-                  // a "2" signals the beginning of a tag
-                  if (readVal == 2) {
-                    rfidCounter = 0; // start reading
-                } 
-                // a "3" signals the end of a tag
-                else if (readVal == 3) {
-                    
-                    // if tag scanned the parse tag and convert id to a string
-                    parseTag();
-                    
-                    //if tag still matches pet that started the feed request, then set new scanned time  
-                    if ((strcmp(tagCompare, tagId) == 0)) {
-                      lastTagScanTime = millis();
-                      analogValueATwo = analogRead(A2); //get load cell reading from pet scale
-                      petWeight = int(analogToLoad(analogValueATwo, petAnalogvalA, petAnalogvalB, petLoadA, petLoadB)); //get weight in lbs
-                      //Serial.println(F("Pet is still feeding"));
-                    }
-                    // clear serial to prevent multiple reads
-                    clearSerial();
-                    // reset reading state
-                    rfidCounter = -1;
-                }
-                // if we are in the middle of reading a tag
-                else if (rfidCounter >= 0) {
-                    // save valuee
-                    readData[rfidCounter] = readVal;
-                    // increment counter
-                    ++rfidCounter;
-                } 
+                // a "2" signals the beginning of a tag
+                if (readVal == 2) {
+                  rfidCounter = 0; // start reading
+              } 
+              // a "3" signals the end of a tag
+              else if (readVal == 3) {
+                  
+                  // if tag scanned the parse tag and convert id to a string
+                  parseTag();
+                  
+                  //if tag still matches pet that started the feed request, then set new scanned time  
+                  if ((strcmp(tagCompare, tagId) == 0)) {
+                    lastTagScanTime = millis();
+                    analogValueATwo = analogRead(A2); //get load cell reading from pet scale
+                    petWeight = int(analogToLoad(analogValueATwo, petAnalogvalA, petAnalogvalB, petLoadA, petLoadB)); //get weight in lbs
+                    //Serial.println(F("Pet is still feeding"));
+                  }
+                  // clear serial to prevent multiple reads
+                  clearSerial();
+                  // reset reading state
+                  rfidCounter = -1;
               }
-              
+              // if we are in the middle of reading a tag
+              else if (rfidCounter >= 0) {
+                  // save valuee
+                  readData[rfidCounter] = readVal;
+                  // increment counter
+                  ++rfidCounter;
+              } 
             }
             
-            analogValueAOne = analogRead(A0); //get after eaten load cell reading from food bowl
-            int weightAfter = int(analogToLoad(analogValueAOne, FoodAnalogvalA, FoodAnalogvalB, FoodLoadA, FoodLoadB)); //get load in grams
-            
-            int weightEaten = weightBefore - weightAfter; //take depensed weight minus weight after to calculate eaten weight
-            
-            if (weightEaten <= 10) {
-              logData.concat("0"); //add amount eaten to log data should be zero
-            } else { 
-              logData.concat(weightEaten); //add amount eaten amount in grams to log data
-            }
-            
-            //add pet weight to log
-            logData.concat(",");
-            logData.concat(petWeight);
-            
-            //print for testing
-            //Serial.println(F("Scale Weights"));
-            //Serial.println(weightBefore);
-            //Serial.println(weightAfter);
-            //Serial.println(weightEaten);
-            
-          } 
-      
-           //if pet ate then mark eaten variable for that time slot
-           if ( (strcmp(animal[i].tag, tagCompare) == 0) && ((((animal[i].slot1Start <= secSinceMidnight) && ( animal[i].slot1End >= secSinceMidnight)) && (animal[i].slot1Eaten == 0)) || (((animal[i].slot2Start <= secSinceMidnight) && (animal[i].slot2End >= secSinceMidnight)) && (animal[i].slot2Eaten == 0))))
-           {
-            if ((animal[i].slot1Start <= secSinceMidnight) && (animal[i].slot1End >= secSinceMidnight)) {
-              animal[i].slot1Eaten = 1;
-            }
-            if ((animal[i].slot2Start <= secSinceMidnight) && (animal[i].slot2End >= secSinceMidnight)) {
-              animal[i].slot2Eaten = 1;
-            }
-           }
+          }
           
-          //***End Data Logging*** 
+          analogValueAOne = analogRead(A0); //get after eaten load cell reading from food bowl
+          int weightAfter = int(analogToLoad(analogValueAOne, FoodAnalogvalA, FoodAnalogvalB, FoodLoadA, FoodLoadB)); //get load in grams
           
-          char* logPathFile = (char*)malloc(strlen(logPath)+20); //create path plus date stamp for filename
-          strcpy(logPathFile, logPath);
-          strcat(logPathFile, dateTime);
-          File logFile = FileSystem.open(logPathFile, FILE_WRITE); //open log file with date stamp for filename
-          free(logPathFile);
-          logFile.print(logData); //print log data to file
-          logFile.close();
-          logData =  String("");
-              
-         } //end of tag match
-       } //end of lockout
+          int weightEaten = weightBefore - weightAfter; //take depensed weight minus weight after to calculate eaten weight
+          
+          if (weightEaten <= 10) {
+            logData.concat("0"); //add amount eaten to log data should be zero
+          } else { 
+            logData.concat(weightEaten); //add amount eaten amount in grams to log data
+          }
+          
+          //add pet weight to log
+          logData.concat(",");
+          logData.concat(petWeight);
+          
+          //print for testing
+          //Serial.println(F("Scale Weights"));
+          //Serial.println(weightBefore);
+          //Serial.println(weightAfter);
+          //Serial.println(weightEaten);
+          
+        } 
+    
+         //if pet ate then mark eaten variable for that time slot
+         if ( (strcmp(animal[i].tag, tagCompare) == 0) && ((((animal[i].slot1Start <= secSinceMidnight) && ( animal[i].slot1End >= secSinceMidnight)) && (animal[i].slot1Eaten == 0)) || (((animal[i].slot2Start <= secSinceMidnight) && (animal[i].slot2End >= secSinceMidnight)) && (animal[i].slot2Eaten == 0))))
+         {
+          if ((animal[i].slot1Start <= secSinceMidnight) && (animal[i].slot1End >= secSinceMidnight)) {
+            animal[i].slot1Eaten = 1;
+          }
+          if ((animal[i].slot2Start <= secSinceMidnight) && (animal[i].slot2End >= secSinceMidnight)) {
+            animal[i].slot2Eaten = 1;
+          }
+         }
+        
+        //***End Data Logging*** 
+        
+        char* logPathFile = (char*)malloc(strlen(logPath)+20); //create path plus date stamp for filename
+        strcpy(logPathFile, logPath);
+        strcat(logPathFile, dateTime);
+        File logFile = FileSystem.open(logPathFile, FILE_WRITE); //open log file with date stamp for filename
+        free(logPathFile);
+        logFile.print(logData); //print log data to file
+        logFile.close();
+        logData =  String("");
+            
+       } //end of tag match
      } //end of for loop
    } else {
      beep();
@@ -493,7 +482,6 @@ void resetSlots() {
     {
       animal[i].slot1Eaten = 0;
       animal[i].slot2Eaten = 0;
-      lockoutTime[i] = 0;
     }
   }
   
@@ -704,7 +692,7 @@ void clearSerial() {
          //reset eaten slots
          animal[i].slot1Eaten = 0;
          animal[i].slot2Eaten = 0;
-         lockoutTime[i] = 0;
+ 
          FileSystem.remove(updatedFile); //remove updated.txt now that tag has been updated
          beep(); //beep if update has completed 
        }
@@ -727,7 +715,6 @@ void clearSerial() {
          animal[i].slot2End = 0;
          animal[i].slot1Eaten = 0;
          animal[i].slot2Eaten = 0;
-         lockoutTime[i] = 0;
          
          //Serial.print(i+1);
          //Serial.print(F(" deleted"));
