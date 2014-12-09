@@ -296,10 +296,13 @@ void processFeedingRequest() {
           logData.concat(amountInt); //add amount depensed times 100 to log data
           logData.concat(",");
           
+          analogValueATwo = analogRead(A2); //get load cell reading from pet scale
+          petWeight = int(analogToLoad(analogValueATwo, petAnalogvalA, petAnalogvalB, petLoadA, petLoadB)); //get weight in lbs
+          
           deniedFeeding = 0;
           
           unsigned long lastTagScanTime = millis();  // last time pets tag was read, in milliseconds
-          const unsigned long stopLookingInterval = 10L * 1000L;  // stop looking time is set to 10 seconds, in milliseconds
+          const unsigned long stopLookingInterval = 5L * 1000L;  // stop looking time is set to 10 seconds, in milliseconds
           
           //While animal is still here feeding, keep looping and looking for a tag until animal has left feeder for more then 10 seconds
           while(millis() - lastTagScanTime < stopLookingInterval){
@@ -322,8 +325,7 @@ void processFeedingRequest() {
                   //if tag still matches pet that started the feed request, then set new scanned time  
                   if ((strcmp(tagCompare, tagId) == 0)) {
                     lastTagScanTime = millis();
-                    analogValueATwo = analogRead(A2); //get load cell reading from pet scale
-                    petWeight = int(analogToLoad(analogValueATwo, petAnalogvalA, petAnalogvalB, petLoadA, petLoadB)); //get weight in lbs
+                   
                     //Serial.println(F("Pet is still feeding"));
                   }
                   // clear serial to prevent multiple reads
@@ -372,9 +374,12 @@ void processFeedingRequest() {
           
           analogValueAOne = analogRead(A0); //get load cell reading from food bowl
           int weightBefore = int(analogToLoad(analogValueAOne, FoodAnalogvalA, FoodAnalogvalB, FoodLoadA, FoodLoadB)); //get load in grams
-
+          
+          analogValueATwo = analogRead(A2); //get load cell reading from pet scale
+          petWeight = int(analogToLoad(analogValueATwo, petAnalogvalA, petAnalogvalB, petLoadA, petLoadB)); //get weight in lbs
+          
           unsigned long lastTagScanTime = millis();  // last time pets tag was read, in milliseconds
-          const unsigned long stopLookingInterval = 10L * 1000L;  // stop looking time is set to 10 seconds, in milliseconds
+          const unsigned long stopLookingInterval = 5L * 1000L;  // stop looking time is set to 10 seconds, in milliseconds
           
           //While animal is still here feeding, keep looping and looking for a tag until animal has left feeder for more then 10 seconds
           while(millis() - lastTagScanTime < stopLookingInterval){
@@ -397,8 +402,6 @@ void processFeedingRequest() {
                   //if tag still matches pet that started the feed request, then set new scanned time  
                   if ((strcmp(tagCompare, tagId) == 0)) {
                     lastTagScanTime = millis();
-                    analogValueATwo = analogRead(A2); //get load cell reading from pet scale
-                    petWeight = int(analogToLoad(analogValueATwo, petAnalogvalA, petAnalogvalB, petLoadA, petLoadB)); //get weight in lbs
                     //Serial.println(F("Pet is still feeding"));
                   }
                   // clear serial to prevent multiple reads
